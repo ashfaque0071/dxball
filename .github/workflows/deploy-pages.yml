@@ -4,8 +4,9 @@
 # Pages as an artifact, so dist/ and build/ stay out of the repository (they
 # are listed in .gitignore).
 #
-# One-time setup in the repository: Settings -> Pages -> "Build and deployment"
-# -> Source: "GitHub Actions".
+# No manual setup is needed: the configure-pages step below switches Pages on
+# with the "GitHub Actions" source the first time this runs. It can only do so
+# on a public repository, or a private one on a plan that includes Pages.
 
 name: Deploy web build to GitHub Pages
 
@@ -63,6 +64,14 @@ jobs:
         run: |
           source ~/emsdk/emsdk_env.sh
           ./build_web.sh --no-zip
+
+      # Creates the Pages site on the first run, so deploy-pages below has
+      # somewhere to publish to. Without this the deploy job fails until
+      # someone flips Settings -> Pages -> Source by hand.
+      - name: Enable GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
