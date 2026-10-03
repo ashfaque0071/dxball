@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep the first chamber in the startup bundle; pack later chambers separately."""
+"""Pack a small menu bootstrap, the first chamber, and later chambers."""
 
 import hashlib
 import json
@@ -8,33 +8,36 @@ import sys
 from pathlib import Path
 
 
-def deferred(relative: Path) -> bool:
+def package_for(relative: Path) -> str:
     parts = relative.parts
     if len(parts) == 2 and parts[0] == "backgrounds":
-        return any(relative.stem == f"level_{n}" for n in range(2, 8))
+        if relative.stem == "menu":
+            return "startup"
+        if relative.stem in {f"level_{n}" for n in range(2, 8)}:
+            return "deferred"
     if len(parts) == 3 and parts[:2] == ("ui", "level_intros"):
-        return any(relative.stem == f"level_intro_{n}" for n in range(2, 8))
-    return False
+        if relative.stem in {f"level_intro_{n}" for n in range(2, 8)}:
+            return "deferred"
+    if parts[0] == "fonts":
+        return "startup"
+    if len(parts) == 2 and parts[0] == "ui" and relative.stem in {
+        "logo", "button", "level_select"
+    }:
+        return "startup"
+    if len(parts) == 2 and parts[0] == "sounds" and relative.stem in {
+        "menu_theme", "ui_soft_chime"
+    }:
+        return "startup"
+    return "core"
 
 
-def main() -> None:
-    source, startup, release = (Path(arg) for arg in sys.argv[1:4])
-    shutil.rmtree(startup, ignore_errors=True)
-    startup.mkdir(parents=True)
-    release.mkdir(parents=True, exist_ok=True)
-
+def write_package(name: str, paths: list[Path], source: Path, release: Path) -> int:
     entries = []
     digest = hashlib.sha256()
     offset = 0
-    with (release / "deferred.data").open("wb") as archive:
-        for path in sorted(p for p in source.rglob("*") if p.is_file()):
+    with (release / f"{name}.data").open("wb") as archive:
+        for path in paths:
             relative = path.relative_to(source)
-            if not deferred(relative):
-                destination = startup / relative
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(path, destination)
-                continue
-
             contents = path.read_bytes()
             archive.write(contents)
             digest.update(contents)
@@ -44,18 +47,38 @@ def main() -> None:
                 "end": offset + len(contents),
             })
             offset += len(contents)
-
-    if len(entries) != 12:
-        raise SystemExit(f"expected 12 deferred level images, found {len(entries)}")
-
     metadata = {"sha256": digest.hexdigest(), "size": offset, "files": entries}
-    (release / "deferred.json").write_text(
+    (release / f"{name}.json").write_text(
         json.dumps(metadata, separators=(",", ":")) + "\n", encoding="utf-8"
     )
+    return offset
 
-    startup_bytes = sum(p.stat().st_size for p in startup.rglob("*") if p.is_file())
-    print(f"  startup assets: {startup_bytes / 1048576:.2f} MB")
-    print(f"  background levels: {offset / 1048576:.2f} MB")
+
+def main() -> None:
+    source, startup, release = (Path(arg) for arg in sys.argv[1:4])
+    shutil.rmtree(startup, ignore_errors=True)
+    startup.mkdir(parents=True)
+    release.mkdir(parents=True, exist_ok=True)
+
+    groups = {"startup": [], "core": [], "deferred": []}
+    for path in sorted(p for p in source.rglob("*") if p.is_file()):
+        groups[package_for(path.relative_to(source))].append(path)
+
+    if len(groups["deferred"]) != 12:
+        raise SystemExit(f"expected 12 deferred level images, found {len(groups['deferred'])}")
+
+    for path in groups["startup"]:
+        relative = path.relative_to(source)
+        destination = startup / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+
+    startup_bytes = sum(p.stat().st_size for p in groups["startup"])
+    core_bytes = write_package("core", groups["core"], source, release)
+    deferred_bytes = write_package("deferred", groups["deferred"], source, release)
+    print(f"  menu startup assets: {startup_bytes / 1048576:.2f} MiB")
+    print(f"  first chamber and extras: {core_bytes / 1048576:.2f} MiB")
+    print(f"  later chamber artwork: {deferred_bytes / 1048576:.2f} MiB")
 
 
 if __name__ == "__main__":

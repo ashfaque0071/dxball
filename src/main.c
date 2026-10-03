@@ -47,6 +47,9 @@ typedef struct
 
 #if DXBALL_WEB
     float autosaveTimer;
+    int coreReady;
+    int coreFailed;
+    int corePercent;
     int deferredReady;
     int deferredFailed;
     int deferredPercent;
@@ -57,6 +60,17 @@ typedef struct
 static App app;
 
 #if DXBALL_WEB
+EMSCRIPTEN_KEEPALIVE void dxballCoreReady(void)
+{
+    app.coreReady = 1;
+}
+
+EMSCRIPTEN_KEEPALIVE void dxballCoreStatus(int percent, int failed)
+{
+    app.corePercent = percent;
+    app.coreFailed = failed;
+}
+
 EMSCRIPTEN_KEEPALIVE void dxballAssetsReady(void)
 {
     app.deferredReady = 1;
@@ -211,7 +225,7 @@ static int appInit(void)
     loadAudio(&app.audio);
 
 #if DXBALL_WEB
-    app.loadedLevelCount = 1;
+    app.loadedLevelCount = 0;
 #endif
 
     gameInit(&app.game);
@@ -301,15 +315,22 @@ static void appFrame(void)
         drawMenuScreens(game, &app.assets);
 
 #if DXBALL_WEB
-    if (waitingForLevel)
+    int waitingForScreen = app.loadedLevelCount == 0 &&
+        (game->showHowToPlay || game->showSettings || game->showHighScore ||
+         game->showCredits || game->showLevelSelect);
+    if (waitingForLevel || waitingForScreen)
     {
-        DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.78f));
+        DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.86f));
+        int waitingForCore = app.loadedLevelCount == 0;
+        int failed = waitingForCore ? app.coreFailed : app.deferredFailed;
+        int percent = waitingForCore ? app.corePercent : app.deferredPercent;
         drawCenteredFontText(game->titleFont,
-                             app.deferredFailed ? "CHAMBER DOWNLOAD FAILED" : "PREPARING CHAMBER",
+                             failed ? "ARTWORK DOWNLOAD FAILED"
+                                    : waitingForLevel ? "PREPARING CHAMBER" : "PREPARING SCREEN",
                              SCREEN_W / 2.0f, 270, 25, 0.8f, GOLD);
         drawCenteredFontText(game->font,
-                             app.deferredFailed ? "CHECK YOUR CONNECTION AND RELOAD"
-                                                : TextFormat("DOWNLOADING ARTWORK... %d%%", app.deferredPercent),
+                             failed ? "CHECK YOUR CONNECTION AND RELOAD"
+                                    : TextFormat("DOWNLOADING ARTWORK... %d%%", percent),
                              SCREEN_W / 2.0f, 319, 14, 0.5f, RAYWHITE);
         drawCenteredFontText(game->font, "ESC TO RETURN TO THE MENU",
                              SCREEN_W / 2.0f, 352, 12, 0.5f, LIGHTGRAY);
@@ -356,6 +377,12 @@ static void appShutdown(void)
 
 static void webFrame(void)
 {
+    if (app.coreReady && app.loadedLevelCount == 0)
+    {
+        loadAssets(&app.assets);
+        loadAudio(&app.audio);
+        app.loadedLevelCount = 1;
+    }
     /* Decode one newly downloaded chamber per frame to avoid a long pause. */
     if (app.deferredReady && app.loadedLevelCount < TOTAL_LEVELS)
     {

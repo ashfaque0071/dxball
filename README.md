@@ -151,14 +151,15 @@ The script accepts two options:
 
 | Path | Contents |
 | --- | --- |
-| `dist/web/` | The playable release: `index.html`, `index.js`, `index.wasm`, `index.data`, `deferred.data`, `deferred.json`, the bundled licences, and `MANIFEST.txt`. |
+| `dist/web/` | The playable release: `index.html`, `index.js`, `index.wasm`, `index.data`, `core.data`, `core.json`, `deferred.data`, `deferred.json`, the bundled licences, and `MANIFEST.txt`. |
 | `dist/dxball-web-itch.zip` | The same files packaged with `index.html` at the archive root, ready to upload to itch.io. |
 | `build/web-deps/` | The cached raylib source and its web build. Safe to delete; it is re-created on demand. |
 
-`index.data` holds everything needed for the menus and first chamber. The six
-later chamber backgrounds and intro screens are packed in `deferred.data` and
-download in the background while the game is already usable. `deferred.json`
-lists the files and verifies the archive's checksum. `MANIFEST.txt`
+`index.data` holds the menu artwork, fonts, and menu audio. `core.data` adds the
+first chamber, gameplay sprites, other screens, and sounds after the menu is
+visible. The six later chamber backgrounds and intro screens are packed in
+`deferred.data` and load after the core package. Each package's JSON file
+lists its files and verifies its checksum. `MANIFEST.txt`
 lists each packaged file with its SHA-256 checksum, so the contents of an upload
 can be verified later.
 
@@ -185,10 +186,11 @@ Shipping it as-is is the single biggest thing that would stop anyone playing.
 
 The result is **about 10 MB instead of 71 MB**. The intro screen change reduces
 the browser download by about a quarter compared with the earlier 15 MB build.
-The first playable screen needs about **5.6 MB of assets** plus the small code
-files; the remaining **3.7 MB** downloads while the player uses the menus or
-first chamber. If a returning player selects a later chamber before its art is
-ready, the game shows download progress and waits there.
+The menu now needs about **1.8 MiB of assets** plus the code files. About
+**3.9 MiB** for the first chamber and other screens downloads while the menu
+is open, followed by **3.7 MiB** for later chambers. If a player selects a
+chamber before its art is ready, the game shows download progress and waits
+there. Actual startup time still depends on the player's network and device.
 Two things make this safe:
 
 - **The originals are never touched.** `assets/` keeps the full-quality
@@ -202,8 +204,8 @@ The web build of raylib is compiled with `-DSUPPORT_FILEFORMAT_JPG`, which
 raylib leaves out by default, so it can decode the JPEGs.
 
 Emscripten's `--use-preload-cache` stores the startup bundle in the browser's
-cache. The later chamber bundle uses a versioned URL so returning players can
-reuse their cached download.
+cache. Both later bundles use versioned URLs so returning players can reuse
+their cached downloads.
 
 If `ffmpeg` or `pngquant` is missing the script says so and copies the files
 through unchanged — the build still succeeds, it is just a much larger

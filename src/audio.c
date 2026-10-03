@@ -4,26 +4,38 @@
 #include "assets.h"
 #include "levels.h"
 
+static void loadSoundOnce(Sound *slot, const char *path)
+{
+    if (slot->frameCount == 0)
+        *slot = loadSoundSafe(path);
+}
+
+static void loadMusicOnce(Music *slot, const char *path)
+{
+    if (slot->frameCount == 0)
+        *slot = loadMusicSafe(path);
+}
+
 
 void loadAudio(Audio *au)
 {
-    au->brick = loadSoundSafe("assets/sounds/brick_magic_hit.wav");
-    au->brickBreak = loadSoundSafe("assets/sounds/brick_break_crystal.wav");
-    au->paddle = loadSoundSafe("assets/sounds/ball_soft_hit.wav");
-    au->lifeLost = loadSoundSafe("assets/sounds/life_lost_gentle.wav");
-    au->gameOver = loadSoundSafe("assets/sounds/game_over_soft.wav");
-    au->levelStart = loadSoundSafe("assets/sounds/level_start_cozy.wav");
-    au->levelComplete = loadSoundSafe("assets/sounds/level_complete_warm.wav");
-    au->victory = loadSoundSafe("assets/sounds/victory_magical_finish.wav");
-    au->powerLife = loadSoundSafe("assets/sounds/extra_life_warm.wav");
-    au->powerSpeed = loadSoundSafe("assets/sounds/speed_magic.wav");
-    au->powerMulti = loadSoundSafe("assets/sounds/multiball_arcane.wav");
-    au->powerWide = loadSoundSafe("assets/sounds/wide_paddle_glow.wav");
-    au->powerInvincible = loadSoundSafe("assets/sounds/invincible_aura.wav");
-    au->skull = loadSoundSafe("assets/sounds/skull_dark_chime.wav");
-    au->book = loadSoundSafe("assets/sounds/magic_book_open.wav");
-    au->locked = loadSoundSafe("assets/sounds/locked_mystery.wav");
-    au->ui = loadSoundSafe("assets/sounds/ui_soft_chime.wav");
+    loadSoundOnce(&au->brick, "assets/sounds/brick_magic_hit.wav");
+    loadSoundOnce(&au->brickBreak, "assets/sounds/brick_break_crystal.wav");
+    loadSoundOnce(&au->paddle, "assets/sounds/ball_soft_hit.wav");
+    loadSoundOnce(&au->lifeLost, "assets/sounds/life_lost_gentle.wav");
+    loadSoundOnce(&au->gameOver, "assets/sounds/game_over_soft.wav");
+    loadSoundOnce(&au->levelStart, "assets/sounds/level_start_cozy.wav");
+    loadSoundOnce(&au->levelComplete, "assets/sounds/level_complete_warm.wav");
+    loadSoundOnce(&au->victory, "assets/sounds/victory_magical_finish.wav");
+    loadSoundOnce(&au->powerLife, "assets/sounds/extra_life_warm.wav");
+    loadSoundOnce(&au->powerSpeed, "assets/sounds/speed_magic.wav");
+    loadSoundOnce(&au->powerMulti, "assets/sounds/multiball_arcane.wav");
+    loadSoundOnce(&au->powerWide, "assets/sounds/wide_paddle_glow.wav");
+    loadSoundOnce(&au->powerInvincible, "assets/sounds/invincible_aura.wav");
+    loadSoundOnce(&au->skull, "assets/sounds/skull_dark_chime.wav");
+    loadSoundOnce(&au->book, "assets/sounds/magic_book_open.wav");
+    loadSoundOnce(&au->locked, "assets/sounds/locked_mystery.wav");
+    loadSoundOnce(&au->ui, "assets/sounds/ui_soft_chime.wav");
 
 
     au->powerSounds[0] = au->powerLife;
@@ -32,11 +44,11 @@ void loadAudio(Audio *au)
     au->powerSounds[3] = au->powerWide;
     au->powerSounds[4] = au->powerInvincible;
 
-    au->music[0] = loadMusicSafe("assets/sounds/level1_cozy_magic_loop.wav");
-    au->music[1] = loadMusicSafe("assets/sounds/level2_arcane_library_loop.wav");
-    au->music[2] = loadMusicSafe("assets/sounds/level3_mysterious_castle_loop.wav");
+    loadMusicOnce(&au->music[0], "assets/sounds/level1_cozy_magic_loop.wav");
+    loadMusicOnce(&au->music[1], "assets/sounds/level2_arcane_library_loop.wav");
+    loadMusicOnce(&au->music[2], "assets/sounds/level3_mysterious_castle_loop.wav");
 
-    au->menuMusic = loadMusicSafe("assets/sounds/menu_theme.wav");
+    loadMusicOnce(&au->menuMusic, "assets/sounds/menu_theme.wav");
 }
 
 void unloadAudio(Audio *au)

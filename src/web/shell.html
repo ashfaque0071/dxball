@@ -178,14 +178,13 @@
   var resolveRuntime;
   var runtimeReady = new Promise(function (resolve) { resolveRuntime = resolve; });
 
-  /* Levels 2-7 are fetched alongside the startup bundle. They do not hold up
-     the menu or chamber 1, and are installed in the virtual filesystem before
-     the C game is told to decode their textures. */
-  async function fetchDeferredPackage(cacheMode) {
-    var metaResponse = await fetch("deferred.json", { cache: "no-cache" });
+  /* The menu has its own small bootstrap bundle. Fetch the first chamber after
+     the menu is visible, then the later chambers. */
+  async function fetchAssetPackage(name, cacheMode) {
+    var metaResponse = await fetch(name + ".json", { cache: "no-cache" });
     if (!metaResponse.ok) throw new Error("Asset list: HTTP " + metaResponse.status);
     var meta = await metaResponse.json();
-    var response = await fetch("deferred.data?v=" + meta.sha256, { cache: cacheMode });
+    var response = await fetch(name + ".data?v=" + meta.sha256, { cache: cacheMode });
     if (!response.ok) throw new Error("Artwork: HTTP " + response.status);
 
     var bytes = new Uint8Array(meta.size);
@@ -198,16 +197,18 @@
         if (offset + part.value.length > bytes.length) throw new Error("Artwork is too large");
         bytes.set(part.value, offset);
         offset += part.value.length;
-        Module.deferredPercent = Math.round(offset / bytes.length * 100);
-        if (runtimeInitialized) Module._dxballAssetsStatus(Module.deferredPercent, 0);
-        assetStatus.textContent = "More chambers " + Module.deferredPercent + "%";
+        var percent = Math.round(offset / bytes.length * 100);
+        if (name === "core") Module._dxballCoreStatus(percent, 0);
+        else Module._dxballAssetsStatus(percent, 0);
+        assetStatus.textContent = (name === "core" ? "Loading game " : "More chambers ") + percent + "%";
       }
       if (offset !== bytes.length) throw new Error("Artwork is incomplete");
     } else {
       var complete = new Uint8Array(await response.arrayBuffer());
       if (complete.length !== bytes.length) throw new Error("Artwork size mismatch");
       bytes.set(complete);
-      Module.deferredPercent = 100;
+      if (name === "core") Module._dxballCoreStatus(100, 0);
+      else Module._dxballAssetsStatus(100, 0);
     }
 
     if (window.crypto && window.crypto.subtle) {
@@ -219,31 +220,37 @@
     }
 
     await runtimeReady;
-    Module._dxballAssetsStatus(100, 0);
     for (var i = 0; i < meta.files.length; i++) {
       var file = meta.files[i];
       var directory = file.path.slice(0, file.path.lastIndexOf("/"));
       Module.FS.mkdirTree(directory);
       Module.FS.writeFile(file.path, bytes.subarray(file.start, file.end));
     }
-    Module._dxballAssetsReady();
-    assetStatus.hidden = true;
+    if (name === "core") Module._dxballCoreReady();
+    else Module._dxballAssetsReady();
   }
 
-  async function loadDeferredPackage() {
+  async function loadAssetPackage(name) {
     assetStatus.hidden = false;
-    assetStatus.textContent = "More chambers 0%";
+    assetStatus.textContent = name === "core" ? "Loading game 0%" : "More chambers 0%";
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
-        await fetchDeferredPackage(attempt === 0 ? "force-cache" : "reload");
-        return;
+        await fetchAssetPackage(name, attempt === 0 ? "force-cache" : "reload");
+        return true;
       } catch (error) {
-        console.warn("dxball: extra chamber download failed.", error);
+        console.warn("dxball: " + name + " download failed.", error);
       }
     }
-    await runtimeReady;
-    Module._dxballAssetsStatus(Module.deferredPercent || 0, 1);
-    assetStatus.textContent = "Extra chambers unavailable; reload to retry";
+    if (name === "core") Module._dxballCoreStatus(0, 1);
+    else Module._dxballAssetsStatus(0, 1);
+    assetStatus.textContent = "Game download failed; reload to retry";
+    return false;
+  }
+
+  async function loadGamePackages() {
+    if (await loadAssetPackage("core")) {
+      if (await loadAssetPackage("deferred")) assetStatus.hidden = true;
+    }
   }
 
   /* ---- Responsive 4:3 sizing -------------------------------------------
@@ -397,7 +404,7 @@
       finishLoading();
       resolveRuntime();
       /* Give the startup package full network priority until it is ready. */
-      loadDeferredPackage();
+      loadGamePackages();
     }
   };
 

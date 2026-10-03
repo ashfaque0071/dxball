@@ -64,6 +64,12 @@ Texture2D loadTextureSafe(const char *path)
     return t;
 }
 
+static void loadTextureOnce(Texture2D *slot, const char *path)
+{
+    if (slot->id == 0)
+        *slot = loadTextureSafe(path);
+}
+
 Sound loadSoundSafe(const char *path)
 {
     Sound s = {0};
@@ -97,7 +103,7 @@ void unloadTextureIfLoaded(Texture2D *t)
 
 static void loadBrickTextures(Assets *a)
 {
-    a->brickAtlas = loadTextureSafe("assets/sprites/bricks.png");
+    loadTextureOnce(&a->brickAtlas, "assets/sprites/bricks.png");
     if (a->brickAtlas.id != 0)
         SetTextureFilter(a->brickAtlas, TEXTURE_FILTER_BILINEAR);
 }
@@ -106,19 +112,19 @@ void loadLevelAssets(Assets *a, int index)
 {
     if (index < 0 || index >= TOTAL_LEVELS)
         return;
-    a->bg[index] = loadTextureSafe(TextFormat("assets/backgrounds/level_%d.png", index + 1));
+    loadTextureOnce(&a->bg[index], TextFormat("assets/backgrounds/level_%d.png", index + 1));
     if (a->bg[index].id != 0)
         SetTextureFilter(a->bg[index], TEXTURE_FILTER_BILINEAR);
-    a->levelTitle[index] = loadTextureSafe(TextFormat("assets/ui/level_intros/level_intro_%d.png", index + 1));
+    loadTextureOnce(&a->levelTitle[index], TextFormat("assets/ui/level_intros/level_intro_%d.png", index + 1));
     if (a->levelTitle[index].id != 0)
         SetTextureFilter(a->levelTitle[index], TEXTURE_FILTER_BILINEAR);
 }
 
 static void loadPlayTextures(Assets *a)
 {
-    a->paddleAtlas = loadTextureSafe("assets/sprites/paddles.png");
-    a->powerAtlas = loadTextureSafe("assets/sprites/powerups.png");
-    a->heartFull = loadTextureSafe("assets/ui/heart_full.png");
+    loadTextureOnce(&a->paddleAtlas, "assets/sprites/paddles.png");
+    loadTextureOnce(&a->powerAtlas, "assets/sprites/powerups.png");
+    loadTextureOnce(&a->heartFull, "assets/ui/heart_full.png");
     if (a->paddleAtlas.id != 0)
         SetTextureFilter(a->paddleAtlas, TEXTURE_FILTER_BILINEAR);
     if (a->powerAtlas.id != 0)
@@ -128,7 +134,7 @@ static void loadPlayTextures(Assets *a)
 
     for (int i = 0; i < 16; i++)
     {
-        a->snitch[i] = loadTextureSafe(TextFormat("assets/sprites/snitch/snitch_%02d.png", i + 1));
+        loadTextureOnce(&a->snitch[i], TextFormat("assets/sprites/snitch/snitch_%02d.png", i + 1));
         if (a->snitch[i].id != 0)
             SetTextureFilter(a->snitch[i], TEXTURE_FILTER_BILINEAR);
     }
@@ -145,16 +151,16 @@ static void loadPlayTextures(Assets *a)
 
 static void loadUITextures(Assets *a)
 {
-    a->menuBackground = loadTextureSafe("assets/backgrounds/menu.png");
-    a->logo = loadTextureSafe("assets/ui/logo.png");
-    a->buttonPlate = loadTextureSafe("assets/ui/button.png");
-    a->settingsBackground = loadTextureSafe("assets/ui/settings.png");
-    a->levelSelectBackground = loadTextureSafe("assets/ui/level_select.png");
-    a->highScoreBackground = loadTextureSafe("assets/ui/high_scores.png");
-    a->bookPanel = loadTextureSafe("assets/ui/book_panel.png");
-    a->howToPlayScreen = loadTextureSafe("assets/ui/help_controls.png");
-    a->howToPlayPowerups = loadTextureSafe("assets/ui/help_powerups.png");
-    a->howToPlayBricks = loadTextureSafe("assets/ui/help_bricks.png");
+    loadTextureOnce(&a->menuBackground, "assets/backgrounds/menu.png");
+    loadTextureOnce(&a->logo, "assets/ui/logo.png");
+    loadTextureOnce(&a->buttonPlate, "assets/ui/button.png");
+    loadTextureOnce(&a->settingsBackground, "assets/ui/settings.png");
+    loadTextureOnce(&a->levelSelectBackground, "assets/ui/level_select.png");
+    loadTextureOnce(&a->highScoreBackground, "assets/ui/high_scores.png");
+    loadTextureOnce(&a->bookPanel, "assets/ui/book_panel.png");
+    loadTextureOnce(&a->howToPlayScreen, "assets/ui/help_controls.png");
+    loadTextureOnce(&a->howToPlayPowerups, "assets/ui/help_powerups.png");
+    loadTextureOnce(&a->howToPlayBricks, "assets/ui/help_bricks.png");
     if (a->menuBackground.id != 0)
         SetTextureFilter(a->menuBackground, TEXTURE_FILTER_BILINEAR);
     Texture2D *ui[] = {&a->logo, &a->buttonPlate, &a->settingsBackground,
