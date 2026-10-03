@@ -63,6 +63,9 @@ fi
 
 mkdir -p "$OUT"
 
+errlog=$(mktemp "${TMPDIR:-/tmp}/dxball-encode.XXXXXX")
+trap 'rm -f "$errlog"' EXIT INT TERM
+
 # Reports 1 when a PNG has an alpha channel that is actually used. Images whose
 # alpha is 255 everywhere can become JPEG with no visible change.
 uses_alpha() {
@@ -80,7 +83,7 @@ PY
 
   [ "$HAVE_FFMPEG" -eq 1 ] || return 0   # cannot inspect: assume alpha matters
 
-  _min=$(ffmpeg -v error -i "$1" -vf alphaextract -pix_fmt gray -f rawvideo - 2>/dev/null \
+  _min=$(ffmpeg -nostdin -v error -i "$1" -vf alphaextract -pix_fmt gray -f rawvideo - 2>/dev/null \
     | python3 -c "
 import sys
 d = sys.stdin.buffer.read()
@@ -104,7 +107,17 @@ find "$SRC" -type f | LC_ALL=C sort | while IFS= read -r src; do
         # Opaque: JPEG is dramatically smaller and visually equivalent here.
         out="$dstdir/$stem.jpg"
         if [ ! -f "$out" ] || [ "$src" -nt "$out" ]; then
-          ffmpeg -v error -y -i "$src" -qscale:v "$JPEG_QUALITY" "$out"
+          # -pix_fmt is explicit so the mjpeg encoder never has to negotiate a
+          # format, which differs between ffmpeg builds. On any failure the
+          # original PNG is kept: a bigger download beats a broken build, and
+          # resolveAssetPath() in src/assets.c finds either name.
+          if ! ffmpeg -nostdin -v error -y -i "$src" -pix_fmt yuvj420p \
+                      -qscale:v "$JPEG_QUALITY" "$out" 2>"$errlog"; then
+            echo "  warning: JPEG encode failed for $rel, keeping the PNG" >&2
+            sed 's/^/    /' "$errlog" >&2 || true
+            rm -f "$out"
+            cp "$src" "$dstdir/$base"
+          fi
         fi
       else
         out="$dstdir/$base"
@@ -137,8 +150,10 @@ find "$SRC" -type f | LC_ALL=C sort | while IFS= read -r src; do
       out="$dstdir/$stem.ogg"
       if [ "$HAVE_VORBIS" -eq 1 ]; then
         if [ ! -f "$out" ] || [ "$src" -nt "$out" ]; then
-          if ! ffmpeg -v error -y -i "$src" $VORBIS_CHANNELS -c:a $VORBIS_ENCODER \
-                      -strict -2 -qscale:a "$OGG_QUALITY" "$out" 2>/dev/null; then
+          if ! ffmpeg -nostdin -v error -y -i "$src" $VORBIS_CHANNELS -c:a $VORBIS_ENCODER \
+                      -strict -2 -qscale:a "$OGG_QUALITY" "$out" 2>"$errlog"; then
+            echo "  warning: OGG encode failed for $rel, keeping the WAV" >&2
+            sed 's/^/    /' "$errlog" >&2 || true
             rm -f "$out"
             cp "$src" "$dstdir/$base"
           fi
@@ -168,11 +183,21 @@ find "$OUT" -type f | while IFS= read -r built; do
   fi
 done
 
-src_bytes=$(find "$SRC" -type f -exec stat -f '%z' {} + 2>/dev/null | paste -sd+ - | bc 2>/dev/null \
-            || find "$SRC" -type f -printf '%s\n' | paste -sd+ - | bc)
-out_bytes=$(find "$OUT" -type f -exec stat -f '%z' {} + 2>/dev/null | paste -sd+ - | bc 2>/dev/null \
-            || find "$OUT" -type f -printf '%s\n' | paste -sd+ - | bc)
+# Counted in python rather than with stat(1), whose size format differs
+# between the BSD and GNU versions.
+python3 - "$SRC" "$OUT" <<'PY'
+import os, sys
 
-awk -v a="$src_bytes" -v b="$out_bytes" 'BEGIN {
-  printf "  assets: %.1f MB -> %.1f MB (%.1fx smaller)\n", a/1048576, b/1048576, (b>0 ? a/b : 0)
-}'
+
+def total(root):
+    n = 0
+    for base, _, files in os.walk(root):
+        for f in files:
+            n += os.path.getsize(os.path.join(base, f))
+    return n
+
+
+a, b = total(sys.argv[1]), total(sys.argv[2])
+ratio = (a / b) if b else 0
+print(f"  assets: {a/1048576:.1f} MB -> {b/1048576:.1f} MB ({ratio:.1f}x smaller)")
+PY
