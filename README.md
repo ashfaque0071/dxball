@@ -517,10 +517,18 @@ push to `main` it installs the pinned Emscripten SDK, runs `./build_web.sh
 --no-zip`, and publishes `dist/web/` to Pages. The Emscripten SDK and the
 raylib build are cached between runs, so only the first run is slow.
 
-Just push to `main` (or run the workflow by hand from the **Actions** tab). The
-workflow switches Pages on itself through its `configure-pages` step, so there
-is no setting to flip first. The finished run prints the published URL, which is
-`https://<you>.github.io/<repo>/` for a project repository.
+Enable it once, in the repository on github.com:
+
+1. **Settings → Pages → Build and deployment → Source: "GitHub Actions"**.
+2. Push to `main`, or re-run the latest workflow from the **Actions** tab.
+3. The finished run prints the published URL, which is
+   `https://<you>.github.io/<repo>/` for a project repository.
+
+Step 1 cannot be automated from inside the workflow. Creating a Pages site calls
+`POST /repos/{owner}/{repo}/pages`, which needs admin rights on the repository,
+and the `GITHUB_TOKEN` a workflow runs with never has them — so
+`actions/configure-pages` with `enablement: true` fails on a repository where
+Pages has never been switched on. It has to be done once in the web UI.
 
 Pages is free on public repositories. On a private repository it requires a plan
 that includes Pages; if the repository is private and the deploy step fails,
