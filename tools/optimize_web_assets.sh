@@ -92,6 +92,18 @@ print(min(d) if d else 255)")
   [ "${_min:-0}" -lt "${2:-255}" ]
 }
 
+oversized_menu_copy() {
+  case "$1" in ui/button.png|ui/logo.png) ;; *) return 1 ;; esac
+  [ "$HAVE_FFMPEG" -eq 1 ] && [ -f "$2" ] || return 1
+  python3 - "$2" <<'PY'
+import struct, sys
+with open(sys.argv[1], 'rb') as image:
+    image.seek(16)
+    width = struct.unpack('>I', image.read(4))[0]
+sys.exit(0 if width > 900 else 1)
+PY
+}
+
 converted=0
 copied=0
 
@@ -131,7 +143,26 @@ find "$SRC" -type f | LC_ALL=C sort | while IFS= read -r src; do
         fi
       else
         out="$dstdir/$base"
-        if [ ! -f "$out" ] || [ "$src" -nt "$out" ]; then
+        if [ ! -f "$out" ] || [ "$src" -nt "$out" ] || oversized_menu_copy "$rel" "$out"; then
+          quant_src=$src
+          scaled=""
+          case "$rel" in
+            ui/button.png|ui/logo.png)
+              if [ "$HAVE_FFMPEG" -eq 1 ]; then
+                # These menu textures render much smaller than their source
+                # dimensions. Keep enough pixels for the 1200x900 web canvas.
+                scaled="$dstdir/.${stem}-scaled.png"
+                if ffmpeg -nostdin -v error -y -i "$src" -vf scale=900:-1 \
+                          -frames:v 1 "$scaled" 2>"$errlog"; then
+                  quant_src=$scaled
+                else
+                  echo "  warning: resize failed for $rel, keeping full size" >&2
+                  rm -f "$scaled"
+                  scaled=""
+                fi
+              fi
+              ;;
+          esac
           if [ "$HAVE_PNGQUANT" -eq 1 ]; then
             # pngquant exits 98/99 when the palette cannot reach the quality
             # floor, which the detailed sprite atlases never do at a high one.
@@ -141,16 +172,17 @@ find "$SRC" -type f | LC_ALL=C sort | while IFS= read -r src; do
             quantized=0
             for q in $PNG_QUALITY_LADDER; do
               if pngquant --quality="$q" --speed 1 --strip \
-                          --force --output "$out" "$src" 2>/dev/null; then
+                          --force --output "$out" "$quant_src" 2>/dev/null; then
                 quantized=1
                 break
               fi
             done
-            [ "$quantized" -eq 1 ] || cp "$src" "$out"
+            [ "$quantized" -eq 1 ] || cp "$quant_src" "$out"
             [ "$HAVE_OXIPNG" -eq 1 ] && oxipng -o2 -q --strip safe "$out" 2>/dev/null || true
           else
-            cp "$src" "$out"
+            cp "$quant_src" "$out"
           fi
+          [ -z "$scaled" ] || rm -f "$scaled"
         fi
       fi
       ;;

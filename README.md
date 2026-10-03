@@ -155,8 +155,8 @@ The script accepts two options:
 | `dist/dxball-web-itch.zip` | The same files packaged with `index.html` at the archive root, ready to upload to itch.io. |
 | `build/web-deps/` | The cached raylib source and its web build. Safe to delete; it is re-created on demand. |
 
-`index.data` holds the menu artwork, fonts, and menu audio. `core.data` adds the
-first chamber, gameplay sprites, other screens, and sounds after the menu is
+`index.data` holds the main menu artwork, fonts, and menu audio. `core.data` adds
+the first chamber, gameplay sprites, other screens, and sounds after the menu is
 visible. The six later chamber backgrounds and intro screens are packed in
 `deferred.data` and load after the core package. Each package's JSON file
 lists its files and verifies its checksum. `MANIFEST.txt`
@@ -181,13 +181,13 @@ Shipping it as-is is the single biggest thing that would stop anyone playing.
 | PNG with no transparency | JPEG, quality ~88 | About 6× smaller, including every level background. |
 | Nearly opaque level intro PNG | JPEG, quality ~88 | The seven intro screens have no fully transparent pixels and only slight translucency; JPEG cuts their combined size by several MB. |
 | Other PNG that uses alpha | PNG, palette-quantised | About 4× smaller with alpha intact, for sprite atlases and overlays. |
+| Main menu logo and button | Resized web copies, then palette-quantised | Their source images are much larger than their rendered size. |
 | WAV | OGG Vorbis | About 15× smaller. Vorbis rather than MP3 because MP3's encoder padding would put an audible gap at the loop point of the music. |
 | Fonts, licences | copied | Already small. |
 
-The result is **about 10 MB instead of 71 MB**. The intro screen change reduces
-the browser download by about a quarter compared with the earlier 15 MB build.
-The menu now needs about **1.8 MiB of assets** plus the code files. About
-**3.9 MiB** for the first chamber and other screens downloads while the menu
+The result is **about 9 MB instead of 71 MB**. The menu now needs about
+**0.8 MiB of assets** plus the code files. About
+**4.1 MiB** for the first chamber and other screens downloads while the menu
 is open, followed by **3.7 MiB** for later chambers. If a player selects a
 chamber before its art is ready, the game shows download progress and waits
 there. Actual startup time still depends on the player's network and device.

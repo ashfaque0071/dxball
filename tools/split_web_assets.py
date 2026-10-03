@@ -20,9 +20,7 @@ def package_for(relative: Path) -> str:
             return "deferred"
     if parts[0] == "fonts":
         return "startup"
-    if len(parts) == 2 and parts[0] == "ui" and relative.stem in {
-        "logo", "button", "level_select"
-    }:
+    if len(parts) == 2 and parts[0] == "ui" and relative.stem in {"logo", "button"}:
         return "startup"
     if len(parts) == 2 and parts[0] == "sounds" and relative.stem in {
         "menu_theme", "ui_soft_chime"
