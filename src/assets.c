@@ -102,6 +102,18 @@ static void loadBrickTextures(Assets *a)
         SetTextureFilter(a->brickAtlas, TEXTURE_FILTER_BILINEAR);
 }
 
+void loadLevelAssets(Assets *a, int index)
+{
+    if (index < 0 || index >= TOTAL_LEVELS)
+        return;
+    a->bg[index] = loadTextureSafe(TextFormat("assets/backgrounds/level_%d.png", index + 1));
+    if (a->bg[index].id != 0)
+        SetTextureFilter(a->bg[index], TEXTURE_FILTER_BILINEAR);
+    a->levelTitle[index] = loadTextureSafe(TextFormat("assets/ui/level_intros/level_intro_%d.png", index + 1));
+    if (a->levelTitle[index].id != 0)
+        SetTextureFilter(a->levelTitle[index], TEXTURE_FILTER_BILINEAR);
+}
+
 static void loadPlayTextures(Assets *a)
 {
     a->paddleAtlas = loadTextureSafe("assets/sprites/paddles.png");
@@ -123,12 +135,11 @@ static void loadPlayTextures(Assets *a)
 
     for (int i = 0; i < TOTAL_LEVELS; i++)
     {
-        a->bg[i] = loadTextureSafe(TextFormat("assets/backgrounds/level_%d.png", i + 1));
-        if (a->bg[i].id != 0)
-            SetTextureFilter(a->bg[i], TEXTURE_FILTER_BILINEAR);
-        a->levelTitle[i] = loadTextureSafe(TextFormat("assets/ui/level_intros/level_intro_%d.png", i + 1));
-        if (a->levelTitle[i].id != 0)
-            SetTextureFilter(a->levelTitle[i], TEXTURE_FILTER_BILINEAR);
+#if DXBALL_WEB
+        if (i > 0)
+            break;
+#endif
+        loadLevelAssets(a, i);
     }
 }
 

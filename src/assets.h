@@ -19,6 +19,8 @@ void unloadTextureIfLoaded(Texture2D *t);
 
 void loadAssets(Assets *a);
 
+void loadLevelAssets(Assets *a, int index);
+
 void unloadAssets(Assets *a);
 
 

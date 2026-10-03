@@ -47,10 +47,46 @@ typedef struct
 
 #if DXBALL_WEB
     float autosaveTimer;
+    int deferredReady;
+    int deferredFailed;
+    int deferredPercent;
+    int loadedLevelCount;
 #endif
 } App;
 
 static App app;
+
+#if DXBALL_WEB
+EMSCRIPTEN_KEEPALIVE void dxballAssetsReady(void)
+{
+    app.deferredReady = 1;
+}
+
+EMSCRIPTEN_KEEPALIVE void dxballAssetsStatus(int percent, int failed)
+{
+    app.deferredPercent = percent;
+    app.deferredFailed = failed;
+}
+
+static int requestedLevel(Game *g)
+{
+    if (g->returnToMenuRequested)
+        return 0;
+    if (g->startLevelRequested)
+        return g->selectedStartLevel;
+    if (g->resumeRequested || g->restartLevelRequested)
+        return g->level;
+    if (g->nextLevelRequested && g->level < TOTAL_LEVELS)
+        return g->level + 1;
+    if (g->levelComplete && !g->gameWon && !g->gameOver &&
+        g->level < TOTAL_LEVELS && IsKeyPressed(KEY_ENTER))
+    {
+        g->nextLevelRequested = 1;
+        return g->level + 1;
+    }
+    return 0;
+}
+#endif
 
 
 static void applyCaptureScene(Game *game)
@@ -174,6 +210,10 @@ static int appInit(void)
     loadAssets(&app.assets);
     loadAudio(&app.audio);
 
+#if DXBALL_WEB
+    app.loadedLevelCount = 1;
+#endif
+
     gameInit(&app.game);
     app.game.font = loadUIFont(&app.game.fontLoaded);
     app.game.titleFont = loadTitleFont(&app.game.titleFontLoaded);
@@ -196,16 +236,41 @@ static void appFrame(void)
 
     updateMusic(audio, game->level, game->gameStarted);
 
-    handleInput(game, audio);
+    int waitingForLevel = 0;
+#if DXBALL_WEB
+    if (requestedLevel(game) > app.loadedLevelCount)
+    {
+        if (IsKeyPressed(KEY_ESCAPE))
+        {
+            if (game->gameStarted)
+                game->returnToMenuRequested = 1;
+            else
+            {
+                game->startLevelRequested = 0;
+                game->resumeRequested = 0;
+                game->restartLevelRequested = 0;
+                game->showLevelSelect = 1;
+            }
+        }
+    }
+    else
+#endif
+        handleInput(game, audio);
     if (game->quitRequested)
     {
         app.shouldClose = 1;
         return;
     }
 
-    applyTransitions(game, audio);
-    updateGameplay(game, audio, dt);
-    updateAnimations(game, dt);
+#if DXBALL_WEB
+    waitingForLevel = requestedLevel(game) > app.loadedLevelCount;
+#endif
+    if (!waitingForLevel)
+    {
+        applyTransitions(game, audio);
+        updateGameplay(game, audio, dt);
+        updateAnimations(game, dt);
+    }
 
     game->justStartedGame = 0;
 
@@ -234,6 +299,22 @@ static void appFrame(void)
         drawPlayScreens(game, &app.assets);
     else
         drawMenuScreens(game, &app.assets);
+
+#if DXBALL_WEB
+    if (waitingForLevel)
+    {
+        DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.78f));
+        drawCenteredFontText(game->titleFont,
+                             app.deferredFailed ? "CHAMBER DOWNLOAD FAILED" : "PREPARING CHAMBER",
+                             SCREEN_W / 2.0f, 270, 25, 0.8f, GOLD);
+        drawCenteredFontText(game->font,
+                             app.deferredFailed ? "CHECK YOUR CONNECTION AND RELOAD"
+                                                : TextFormat("DOWNLOADING ARTWORK... %d%%", app.deferredPercent),
+                             SCREEN_W / 2.0f, 319, 14, 0.5f, RAYWHITE);
+        drawCenteredFontText(game->font, "ESC TO RETURN TO THE MENU",
+                             SCREEN_W / 2.0f, 352, 12, 0.5f, LIGHTGRAY);
+    }
+#endif
 
     EndMode2D();
     EndTextureMode();
@@ -275,6 +356,12 @@ static void appShutdown(void)
 
 static void webFrame(void)
 {
+    /* Decode one newly downloaded chamber per frame to avoid a long pause. */
+    if (app.deferredReady && app.loadedLevelCount < TOTAL_LEVELS)
+    {
+        loadLevelAssets(&app.assets, app.loadedLevelCount);
+        app.loadedLevelCount++;
+    }
     appFrame();
 
     /* Nothing in the web build sets quitRequested, but honour it anyway rather

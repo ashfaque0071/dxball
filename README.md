@@ -151,12 +151,14 @@ The script accepts two options:
 
 | Path | Contents |
 | --- | --- |
-| `dist/web/` | The playable release: `index.html`, `index.js`, `index.wasm`, `index.data`, the bundled licences, and `MANIFEST.txt`. |
+| `dist/web/` | The playable release: `index.html`, `index.js`, `index.wasm`, `index.data`, `deferred.data`, `deferred.json`, the bundled licences, and `MANIFEST.txt`. |
 | `dist/dxball-web-itch.zip` | The same files packaged with `index.html` at the archive root, ready to upload to itch.io. |
 | `build/web-deps/` | The cached raylib source and its web build. Safe to delete; it is re-created on demand. |
 
-`index.data` holds every asset — all fonts, backgrounds, sprites, UI art, and
-sounds from `assets/` — so the release has no loose asset files. `MANIFEST.txt`
+`index.data` holds everything needed for the menus and first chamber. The six
+later chamber backgrounds and intro screens are packed in `deferred.data` and
+download in the background while the game is already usable. `deferred.json`
+lists the files and verifies the archive's checksum. `MANIFEST.txt`
 lists each packaged file with its SHA-256 checksum, so the contents of an upload
 can be verified later.
 
@@ -183,6 +185,10 @@ Shipping it as-is is the single biggest thing that would stop anyone playing.
 
 The result is **about 10 MB instead of 71 MB**. The intro screen change reduces
 the browser download by about a quarter compared with the earlier 15 MB build.
+The first playable screen needs about **5.6 MB of assets** plus the small code
+files; the remaining **3.7 MB** downloads while the player uses the menus or
+first chamber. If a returning player selects a later chamber before its art is
+ready, the game shows download progress and waits there.
 Two things make this safe:
 
 - **The originals are never touched.** `assets/` keeps the full-quality
@@ -195,9 +201,9 @@ Two things make this safe:
 The web build of raylib is compiled with `-DSUPPORT_FILEFORMAT_JPG`, which
 raylib leaves out by default, so it can decode the JPEGs.
 
-Emscripten's `--use-preload-cache` is also enabled: the asset bundle is stored
-in the browser's cache on first visit, so returning players skip the download
-entirely.
+Emscripten's `--use-preload-cache` stores the startup bundle in the browser's
+cache. The later chamber bundle uses a versioned URL so returning players can
+reuse their cached download.
 
 If `ffmpeg` or `pngquant` is missing the script says so and copies the files
 through unchanged — the build still succeeds, it is just a much larger
@@ -610,8 +616,9 @@ Then set **Settings → Pages → Build and deployment → Source: "Deploy from 
 branch" → Branch: `main`, folder: `/docs`**, and repeat the commands above
 after every rebuild.
 
-Be aware of what this costs. `index.data` is about 10 MB, so **each** deployment
-adds another ~10 MB to the repository's history, permanently — Git keeps every
+Be aware of what this costs. `index.data` and `deferred.data` total about 10 MB,
+so **each** deployment adds another ~10 MB to the repository's history,
+permanently — Git keeps every
 version, and the only way to reclaim that space later is a history rewrite.
 Large generated files can still make repository history grow quickly.
 Option A avoids all of it, which is why it is the recommended one.
@@ -684,6 +691,6 @@ before making an itch.io page public.
 - [ ] **Project metadata.** Check that the itch.io title, tags, cover image, and
       description reflect the same decisions you reached above.
 - [ ] **Package contents.** Open `dist/dxball-web-itch.zip` (or read
-      `MANIFEST.txt`) and confirm it contains only the eight generated release
+      `MANIFEST.txt`) and confirm it contains only the ten generated release
       files — no source code, no desktop executables, no development libraries,
       and no personal `saves/` data.

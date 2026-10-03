@@ -79,6 +79,7 @@
 
   #hint { opacity: 0.78; text-align: center; }
   #hint b { color: var(--brass); font-weight: 600; }
+  #asset-status { color: var(--brass); opacity: 0.85; }
 
   #fullscreen {
     font: inherit;
@@ -155,6 +156,7 @@
     <b>P</b> pause &nbsp;·&nbsp;
     <b>Esc</b> back
   </span>
+  <span id="asset-status" hidden></span>
   <button id="fullscreen" type="button">Fullscreen</button>
 </div>
 
@@ -171,6 +173,78 @@
   var loading = document.getElementById("loading");
   var fill = document.getElementById("fill");
   var statusEl = document.getElementById("status");
+  var assetStatus = document.getElementById("asset-status");
+  var runtimeInitialized = false;
+  var resolveRuntime;
+  var runtimeReady = new Promise(function (resolve) { resolveRuntime = resolve; });
+
+  /* Levels 2-7 are fetched alongside the startup bundle. They do not hold up
+     the menu or chamber 1, and are installed in the virtual filesystem before
+     the C game is told to decode their textures. */
+  async function fetchDeferredPackage(cacheMode) {
+    var metaResponse = await fetch("deferred.json", { cache: "no-cache" });
+    if (!metaResponse.ok) throw new Error("Asset list: HTTP " + metaResponse.status);
+    var meta = await metaResponse.json();
+    var response = await fetch("deferred.data?v=" + meta.sha256, { cache: cacheMode });
+    if (!response.ok) throw new Error("Artwork: HTTP " + response.status);
+
+    var bytes = new Uint8Array(meta.size);
+    if (response.body && response.body.getReader) {
+      var reader = response.body.getReader();
+      var offset = 0;
+      while (true) {
+        var part = await reader.read();
+        if (part.done) break;
+        if (offset + part.value.length > bytes.length) throw new Error("Artwork is too large");
+        bytes.set(part.value, offset);
+        offset += part.value.length;
+        Module.deferredPercent = Math.round(offset / bytes.length * 100);
+        if (runtimeInitialized) Module._dxballAssetsStatus(Module.deferredPercent, 0);
+        assetStatus.textContent = "More chambers " + Module.deferredPercent + "%";
+      }
+      if (offset !== bytes.length) throw new Error("Artwork is incomplete");
+    } else {
+      var complete = new Uint8Array(await response.arrayBuffer());
+      if (complete.length !== bytes.length) throw new Error("Artwork size mismatch");
+      bytes.set(complete);
+      Module.deferredPercent = 100;
+    }
+
+    if (window.crypto && window.crypto.subtle) {
+      var digest = await window.crypto.subtle.digest("SHA-256", bytes);
+      var actual = Array.from(new Uint8Array(digest), function (n) {
+        return n.toString(16).padStart(2, "0");
+      }).join("");
+      if (actual !== meta.sha256) throw new Error("Artwork checksum mismatch");
+    }
+
+    await runtimeReady;
+    Module._dxballAssetsStatus(100, 0);
+    for (var i = 0; i < meta.files.length; i++) {
+      var file = meta.files[i];
+      var directory = file.path.slice(0, file.path.lastIndexOf("/"));
+      Module.FS.mkdirTree(directory);
+      Module.FS.writeFile(file.path, bytes.subarray(file.start, file.end));
+    }
+    Module._dxballAssetsReady();
+    assetStatus.hidden = true;
+  }
+
+  async function loadDeferredPackage() {
+    assetStatus.hidden = false;
+    assetStatus.textContent = "More chambers 0%";
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await fetchDeferredPackage(attempt === 0 ? "force-cache" : "reload");
+        return;
+      } catch (error) {
+        console.warn("dxball: extra chamber download failed.", error);
+      }
+    }
+    await runtimeReady;
+    Module._dxballAssetsStatus(Module.deferredPercent || 0, 1);
+    assetStatus.textContent = "Extra chambers unavailable; reload to retry";
+  }
 
   /* ---- Responsive 4:3 sizing -------------------------------------------
      The canvas keeps its 1200x900 backbuffer at every display size; only the
@@ -318,7 +392,13 @@
       }
     },
 
-    onRuntimeInitialized: finishLoading
+    onRuntimeInitialized: function () {
+      runtimeInitialized = true;
+      finishLoading();
+      resolveRuntime();
+      /* Give the startup package full network priority until it is ready. */
+      loadDeferredPackage();
+    }
   };
 
   window.Module = Module;

@@ -22,6 +22,7 @@ RAYLIB_SRC="${DEPS_DIR}/raylib-${RAYLIB_VERSION}/src"
 OUT_DIR=dist/web
 ZIP_PATH=dist/dxball-web-itch.zip
 WEB_ASSETS=build/web-assets
+WEB_STARTUP_ASSETS=build/web-startup-assets
 
 # raylib leaves JPEG decoding out by default. The web build needs it because
 # tools/optimize_web_assets.sh re-encodes every fully opaque PNG as JPEG, which
@@ -203,6 +204,7 @@ done
 
 echo "Preparing web assets"
 ./tools/optimize_web_assets.sh assets "$WEB_ASSETS"
+python3 tools/split_web_assets.py "$WEB_ASSETS" "$WEB_STARTUP_ASSETS" "$OUT_DIR"
 
 echo "Compiling and linking the WebAssembly build"
 
@@ -229,7 +231,7 @@ emcc -std=c99 -Wall -Wextra -Wno-unused-parameter -O3 \
   -sFORCE_FILESYSTEM=1 \
   -lidbfs.js \
   -sEXPORTED_RUNTIME_METHODS=FS,IDBFS,addRunDependency,removeRunDependency,HEAPF32 \
-  -sEXPORTED_FUNCTIONS=_main,_ma_device__on_notification_unlocked \
+  -sEXPORTED_FUNCTIONS=_main,_ma_device__on_notification_unlocked,_dxballAssetsReady,_dxballAssetsStatus \
   -sMODULARIZE=0 \
   -sASSERTIONS=0 \
   --closure 0 \
@@ -237,7 +239,7 @@ emcc -std=c99 -Wall -Wextra -Wno-unused-parameter -O3 \
   --pre-js src/web/pre.js \
   --js-library src/web/library_dxball.js \
   --use-preload-cache \
-  --preload-file "$WEB_ASSETS"@/assets
+  --preload-file "$WEB_STARTUP_ASSETS"@/assets
 
 [ -f "$OUT_DIR/index.html" ] || die "the link step did not produce $OUT_DIR/index.html"
 
