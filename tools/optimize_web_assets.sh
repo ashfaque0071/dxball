@@ -66,8 +66,9 @@ mkdir -p "$OUT"
 errlog=$(mktemp "${TMPDIR:-/tmp}/dxball-encode.XXXXXX")
 trap 'rm -f "$errlog"' EXIT INT TERM
 
-# Reports 1 when a PNG has an alpha channel that is actually used. Images whose
-# alpha is 255 everywhere can become JPEG with no visible change.
+# Reports 1 when a PNG has pixels below the requested alpha floor. The intro
+# screens are almost opaque (minimum alpha 235), so their tiny translucency can
+# be dropped for a much smaller JPEG. Other images require full opacity.
 uses_alpha() {
   _ct=$(python3 - "$1" <<'PY'
 import struct, sys
@@ -88,7 +89,7 @@ PY
 import sys
 d = sys.stdin.buffer.read()
 print(min(d) if d else 255)")
-  [ "${_min:-0}" -lt 255 ]
+  [ "${_min:-0}" -lt "${2:-255}" ]
 }
 
 converted=0
@@ -103,8 +104,12 @@ find "$SRC" -type f | LC_ALL=C sort | while IFS= read -r src; do
 
   case "$base" in
     *.png)
-      if [ "$HAVE_FFMPEG" -eq 1 ] && ! uses_alpha "$src"; then
-        # Opaque: JPEG is dramatically smaller and visually equivalent here.
+      alpha_floor=255
+      case "$rel" in
+        ui/level_intros/level_intro_*.png) alpha_floor=235 ;;
+      esac
+      if [ "$HAVE_FFMPEG" -eq 1 ] && ! uses_alpha "$src" "$alpha_floor"; then
+        # Opaque and nearly opaque intro screens are much smaller as JPEGs.
         out="$dstdir/$stem.jpg"
         if [ ! -f "$out" ] || [ "$src" -nt "$out" ]; then
           # -pix_fmt is explicit so the mjpeg encoder never has to negotiate a
@@ -118,6 +123,11 @@ find "$SRC" -type f | LC_ALL=C sort | while IFS= read -r src; do
             rm -f "$out"
             cp "$src" "$dstdir/$base"
           fi
+        fi
+        # A previous build may have kept the PNG before JPEG conversion became
+        # available. Do not package both copies on an incremental build.
+        if [ -f "$out" ]; then
+          rm -f "$dstdir/$base"
         fi
       else
         out="$dstdir/$base"

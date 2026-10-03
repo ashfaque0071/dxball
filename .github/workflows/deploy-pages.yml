@@ -55,7 +55,7 @@ jobs:
 
       # tools/optimize_web_assets.sh re-encodes assets/ for the web. Without
       # these it still builds, but falls back to shipping the originals and
-      # the download grows from ~14 MB back to ~70 MB.
+      # the download grows from ~10 MB back to ~70 MB.
       - name: Install asset optimisation tools
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pngquant ffmpeg
 

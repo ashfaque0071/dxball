@@ -104,7 +104,7 @@ a rewrite: it shares every source file with the desktop builds.
 - **Recommended:** `ffmpeg` and `pngquant`, used to re-encode the artwork for
   the web (see [Download size](#download-size)). Without them the build still
   works, but ships the full-size originals and the download grows from about
-  14 MB to about 70 MB.
+  10 MB to about 70 MB.
 
   ```sh
   brew install ffmpeg pngquant oxipng        # macOS
@@ -175,12 +175,14 @@ Shipping it as-is is the single biggest thing that would stop anyone playing.
 
 | Source | Shipped as | Why |
 | --- | --- | --- |
-| PNG with no transparency | JPEG, quality ~88 | About 6× smaller. 15 of the 44 images, including every level background, have no alpha at all. |
-| PNG that uses alpha | PNG, palette-quantised | About 4× smaller with alpha intact, for sprite atlases and overlays. |
+| PNG with no transparency | JPEG, quality ~88 | About 6× smaller, including every level background. |
+| Nearly opaque level intro PNG | JPEG, quality ~88 | The seven intro screens have no fully transparent pixels and only slight translucency; JPEG cuts their combined size by several MB. |
+| Other PNG that uses alpha | PNG, palette-quantised | About 4× smaller with alpha intact, for sprite atlases and overlays. |
 | WAV | OGG Vorbis | About 15× smaller. Vorbis rather than MP3 because MP3's encoder padding would put an audible gap at the loop point of the music. |
 | Fonts, licences | copied | Already small. |
 
-The result is **about 14 MB instead of 71 MB**, roughly a 5× faster first load.
+The result is **about 10 MB instead of 71 MB**. The intro screen change reduces
+the browser download by about a quarter compared with the earlier 15 MB build.
 Two things make this safe:
 
 - **The originals are never touched.** `assets/` keeps the full-quality
@@ -503,7 +505,7 @@ to or posts to itch.io on your behalf.
 2. **Select "HTML Game".** Set *Kind of project* to **HTML**. This is what makes
    the *"This file will be played in the browser"* option available later.
 3. **Upload the archive.** Under *Uploads*, choose
-   `dist/dxball-web-itch.zip`. The archive is about 69 MB, which is within
+   `dist/dxball-web-itch.zip`. The archive is about 10 MB, which is within
    itch.io's limits for a browser game; the upload itself may take a while.
 4. **Mark it playable in the browser.** Tick **"This file will be played in the
    browser"** on the uploaded file. itch.io serves `index.html` from the archive
@@ -608,12 +610,10 @@ Then set **Settings → Pages → Build and deployment → Source: "Deploy from 
 branch" → Branch: `main`, folder: `/docs`**, and repeat the commands above
 after every rebuild.
 
-Be aware of what this costs. `index.data` is about 70 MB, so **each** deployment
-adds another ~70 MB to the repository's history, permanently — Git keeps every
+Be aware of what this costs. `index.data` is about 10 MB, so **each** deployment
+adds another ~10 MB to the repository's history, permanently — Git keeps every
 version, and the only way to reclaim that space later is a history rewrite.
-GitHub also warns on any file over 50 MB and rejects anything over 100 MB
-outright, so this file is already most of the way to the hard limit: if
-`assets/` grows much, this route will stop working while Option A keeps running.
+Large generated files can still make repository history grow quickly.
 Option A avoids all of it, which is why it is the recommended one.
 
 ### Which host to use
@@ -621,8 +621,8 @@ Option A avoids all of it, which is why it is the recommended one.
 | | itch.io | GitHub Pages |
 | --- | --- | --- |
 | Built for games | Yes — the embed, fullscreen button, and page are provided | No — it is a static site host |
-| Suits a ~69 MB game | Yes | Workable, but heavy for the service |
-| Bandwidth | Intended for game downloads | ~100 GB/month soft limit, which is only about 1,400 full loads of this build |
+| Suits an ~10 MB game | Yes | Yes |
+| Bandwidth | Intended for game downloads | ~100 GB/month soft limit, about 9,000 full loads of this build |
 | Site size | Generous | 1 GB soft limit |
 | Best for | The public release | Dev builds, previews, and sharing a link while iterating |
 
