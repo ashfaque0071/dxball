@@ -1,0 +1,79 @@
+# Builds the WebAssembly release and publishes it to GitHub Pages.
+#
+# Nothing generated is committed: the build output is uploaded straight to
+# Pages as an artifact, so dist/ and build/ stay out of the repository (they
+# are listed in .gitignore).
+#
+# One-time setup in the repository: Settings -> Pages -> "Build and deployment"
+# -> Source: "GitHub Actions".
+
+name: Deploy web build to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deployment finish rather than cancelling it half-way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the version the build is verified against. build_web.sh
+      # discovers an SDK at ~/emsdk on its own, so no activation step is needed
+      # here. To move to a newer Emscripten, change it in both places below.
+      - name: Cache Emscripten SDK
+        id: cache-emsdk
+        uses: actions/cache@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-6.0.10
+
+      - name: Install Emscripten
+        if: steps.cache-emsdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+          ~/emsdk/emsdk install 6.0.10
+          ~/emsdk/emsdk activate 6.0.10
+
+      # raylib is downloaded and compiled once, then reused across runs.
+      - name: Cache raylib web build
+        uses: actions/cache@v4
+        with:
+          path: build/web-deps
+          key: raylib-5.5-web
+
+      # Activated here in bash rather than relying on build_web.sh to do it:
+      # emsdk_env.sh finds itself through $BASH_SOURCE and cannot do so under
+      # dash, which is /bin/sh on Ubuntu. (build_web.sh has a fallback for
+      # that case, but putting emcc on PATH up front keeps this unambiguous.)
+      - name: Build
+        shell: bash
+        run: |
+          source ~/emsdk/emsdk_env.sh
+          ./build_web.sh --no-zip
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

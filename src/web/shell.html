@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DX Ball — Wizarding World</title>
+<style>
+  :root {
+    --ink: #0a0810;
+    --panel: #130f1c;
+    --brass: #d8b26a;
+    --text: #cdc3dd;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    /* The game is driven entirely by the canvas, so the page itself must never
+       scroll: arrow keys and space would otherwise move the document. */
+    overflow: hidden;
+    background: var(--ink);
+    color: var(--text);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    overscroll-behavior: none;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background:
+      radial-gradient(ellipse at 50% 0%, #1d1630 0%, transparent 62%),
+      var(--ink);
+  }
+
+  #frame {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+
+  /* The canvas keeps a fixed 1200x900 backbuffer. Its CSS size is computed in
+     JS so the element box stays exactly 4:3 -- Emscripten maps pointer events
+     with canvas.width / rect.width, so an element box of a different shape
+     would misplace every click. */
+  #canvas {
+    display: block;
+    background: #000;
+    outline: none;
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px rgba(216, 178, 106, 0.28), 0 18px 48px rgba(0, 0, 0, 0.6);
+    /* Fallback shape for the first paint, before fitCanvas() runs. */
+    aspect-ratio: 4 / 3;
+    max-width: 100%;
+    max-height: 100%;
+    touch-action: none;
+  }
+
+  #bar {
+    flex: 0 0 auto;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 6px 10px 10px;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+  }
+
+  #hint { opacity: 0.78; text-align: center; }
+  #hint b { color: var(--brass); font-weight: 600; }
+
+  #fullscreen {
+    font: inherit;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brass);
+    background: var(--panel);
+    border: 1px solid rgba(216, 178, 106, 0.4);
+    border-radius: 999px;
+    padding: 5px 15px;
+    cursor: pointer;
+  }
+  #fullscreen:hover { background: #1d1730; }
+
+  /* Loading overlay */
+  #loading {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: var(--ink);
+    z-index: 10;
+    transition: opacity 320ms ease;
+  }
+  #loading.done { opacity: 0; pointer-events: none; }
+
+  #loading h1 {
+    margin: 0;
+    font-size: clamp(18px, 4vw, 30px);
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--brass);
+  }
+
+  #track {
+    width: min(320px, 68vw);
+    height: 5px;
+    border-radius: 999px;
+    background: #241c38;
+    overflow: hidden;
+  }
+  #fill {
+    height: 100%;
+    width: 8%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #8d6bd0, var(--brass));
+    transition: width 220ms ease;
+  }
+  #status { font-size: 12.5px; opacity: 0.72; min-height: 1.2em; }
+  #status.error { color: #ff9e9e; opacity: 1; }
+
+  /* In fullscreen the frame is the only thing on screen. */
+  #frame:fullscreen { background: #000; padding: 0; }
+  #frame:fullscreen #canvas { border-radius: 0; box-shadow: none; }
+</style>
+</head>
+<body>
+
+<div id="frame">
+  <canvas id="canvas" width="1200" height="900" tabindex="0"
+          aria-label="DX Ball game screen"
+          oncontextmenu="event.preventDefault()"></canvas>
+</div>
+
+<div id="bar">
+  <span id="hint">
+    <b>&larr; &rarr;</b> or mouse to move &nbsp;·&nbsp;
+    <b>Space</b> launch &nbsp;·&nbsp;
+    <b>P</b> pause &nbsp;·&nbsp;
+    <b>Esc</b> back
+  </span>
+  <button id="fullscreen" type="button">Fullscreen</button>
+</div>
+
+<div id="loading">
+  <h1>DX Ball</h1>
+  <div id="track"><div id="fill"></div></div>
+  <div id="status">Loading…</div>
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById("canvas");
+  var frame = document.getElementById("frame");
+  var loading = document.getElementById("loading");
+  var fill = document.getElementById("fill");
+  var statusEl = document.getElementById("status");
+
+  /* ---- Responsive 4:3 sizing -------------------------------------------
+     The canvas keeps its 1200x900 backbuffer at every display size; only the
+     CSS box changes, so the game never distorts and never re-allocates its
+     render target. */
+  function fitCanvas() {
+    var cs = window.getComputedStyle(frame);
+    var w = frame.clientWidth -
+            parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var h = frame.clientHeight -
+            parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+
+    var scale = Math.min(w / 4, h / 3);
+    if (!(scale > 0)) return;
+
+    /* The stylesheet's max-width/max-height are only a pre-script fallback.
+       Left in place they would clamp one axis of the size computed here and
+       stretch the picture, so they are dropped once this runs. */
+    canvas.style.maxWidth = "none";
+    canvas.style.maxHeight = "none";
+    canvas.style.width = Math.floor(scale * 4) + "px";
+    canvas.style.height = Math.floor(scale * 3) + "px";
+  }
+  window.addEventListener("resize", fitCanvas);
+  window.addEventListener("orientationchange", fitCanvas);
+  document.addEventListener("fullscreenchange", fitCanvas);
+  if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(frame);
+  fitCanvas();
+
+  /* ---- Fullscreen ------------------------------------------------------
+     The wrapper is made fullscreen rather than the canvas: fitCanvas() then
+     keeps the 4:3 box inside it, so the aspect ratio survives on displays of
+     any shape. */
+  var fsButton = document.getElementById("fullscreen");
+  if (!frame.requestFullscreen) {
+    fsButton.hidden = true;
+  } else {
+    fsButton.addEventListener("click", function () {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else frame.requestFullscreen().catch(function (e) {
+        console.warn("dxball: fullscreen request refused.", e);
+      });
+      canvas.focus();
+    });
+  }
+
+  /* ---- Keep input on the canvas ---------------------------------------- */
+  canvas.addEventListener("mousedown", function () { canvas.focus(); });
+  window.addEventListener("load", function () { canvas.focus(); });
+
+  /* Arrow keys and space scroll a document by default. The page is already
+     overflow:hidden, but an itch.io iframe is not, so swallow them too. */
+  var swallowed = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+                   "Space", "PageUp", "PageDown", "Home", "End"];
+  window.addEventListener("keydown", function (e) {
+    if (swallowed.indexOf(e.code) !== -1) e.preventDefault();
+  }, { passive: false });
+
+  /* ---- Audio unlock ----------------------------------------------------
+     miniaudio (raylib's audio backend) already installs its own "click" and
+     "touchend" listeners to resume the suspended AudioContext. It does not
+     watch the keyboard, so a player who only ever presses keys would get no
+     sound; this covers that case. The game itself never blocks on audio -- a
+     suspended context just stays silent until it is resumed. */
+  function unlockAudio() {
+    try {
+      if (window.miniaudio && typeof window.miniaudio.unlock === "function") {
+        window.miniaudio.unlock();
+      }
+    } catch (e) {
+      console.warn("dxball: could not resume audio.", e);
+    }
+  }
+  window.addEventListener("keydown", unlockAudio, true);
+  window.addEventListener("pointerdown", unlockAudio, true);
+
+  /* ---- Loading indicator ---------------------------------------------- */
+  var finished = false;
+  function finishLoading() {
+    if (finished) return;
+    finished = true;
+    fill.style.width = "100%";
+    statusEl.textContent = "Ready";
+    loading.classList.add("done");
+    setTimeout(function () { loading.hidden = true; }, 400);
+    fitCanvas();
+    canvas.focus();
+  }
+
+  var Module = {
+    canvas: canvas,
+    print: function (text) { console.log(text); },
+    printErr: function (text) { console.error(text); },
+
+    setStatus: function (text) {
+      if (finished) return;
+      if (!text) { finishLoading(); return; }
+
+      /* Emscripten reports download progress as "... (12345/67890)". */
+      var m = /\((\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)\)/.exec(text);
+      if (m) {
+        var done = parseFloat(m[1]);
+        var total = parseFloat(m[2]);
+        if (total > 0) {
+          var pct = Math.max(4, Math.min(99, (done / total) * 100));
+          fill.style.width = pct.toFixed(1) + "%";
+        }
+        statusEl.textContent = "Loading game data… " +
+          (total > 0 ? Math.round((done / total) * 100) + "%" : "");
+      } else {
+        statusEl.textContent = text;
+      }
+    },
+
+    totalDependencies: 0,
+    monitorRunDependencies: function (left) {
+      this.totalDependencies = Math.max(this.totalDependencies, left);
+      if (left === 0) {
+        Module.setStatus("");
+      } else {
+        Module.setStatus("Preparing… (" +
+          (this.totalDependencies - left) + "/" + this.totalDependencies + ")");
+      }
+    },
+
+    onRuntimeInitialized: finishLoading
+  };
+
+  window.Module = Module;
+
+  window.addEventListener("error", function (e) {
+    if (finished) return;
+    statusEl.className = "error";
+    statusEl.textContent = "Failed to start: " + (e.message || "unknown error");
+  });
+
+  canvas.addEventListener("webglcontextlost", function (e) {
+    e.preventDefault();
+    alert("The graphics context was lost. Please reload the page.");
+  }, false);
+})();
+</script>
+
+{{{ SCRIPT }}}
+
+</body>
+</html>

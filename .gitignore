@@ -1,0 +1,13 @@
+# Native build output
+dxball
+dxball.exe
+
+# Web build output and dependency cache
+build/
+dist/
+
+# Personal save data (settings, progress, unlocked levels, scores)
+saves/
+
+# macOS
+.DS_Store
