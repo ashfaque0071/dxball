@@ -9,27 +9,76 @@
 #include "assets.h"
 
 
+/* Resolves an asset path to the file that actually shipped.
+
+   The desktop builds load assets/ exactly as it sits in the repository and
+   this returns the path unchanged on the first check. The web build packages a
+   re-encoded copy instead -- opaque PNGs become JPEG and WAVs become OGG,
+   which is what keeps the browser download to a fraction of the 71 MB the
+   originals weigh -- so a path ending in .png or .wav may have shipped under a
+   different extension. Call sites keep using the original names.
+
+   The returned pointer is either the caller's own string or a static buffer
+   that stays valid until the next call, which is all the loaders below need. */
+static const char *resolveAssetPath(const char *path)
+{
+    if (FileExists(path))
+        return path;
+
+    static const struct
+    {
+        const char *from;
+        const char *to;
+    } swaps[] = {
+        {".png", ".jpg"},
+        {".wav", ".ogg"},
+    };
+
+    static char alternate[512];
+    size_t len = strlen(path);
+
+    for (int i = 0; i < (int)(sizeof(swaps) / sizeof(swaps[0])); i++)
+    {
+        size_t fromLen = strlen(swaps[i].from);
+        if (len <= fromLen || !IsFileExtension(path, swaps[i].from))
+            continue;
+
+        int written = snprintf(alternate, sizeof(alternate), "%.*s%s",
+                               (int)(len - fromLen), path, swaps[i].to);
+        if (written < 0 || (size_t)written >= sizeof(alternate))
+            break;
+
+        if (FileExists(alternate))
+            return alternate;
+    }
+
+    return path;
+}
+
 Texture2D loadTextureSafe(const char *path)
 {
     Texture2D t = {0};
-    if (FileExists(path))
-        t = LoadTexture(path);
+    const char *resolved = resolveAssetPath(path);
+    if (FileExists(resolved))
+        t = LoadTexture(resolved);
     return t;
 }
 
 Sound loadSoundSafe(const char *path)
 {
     Sound s = {0};
-    if (FileExists(path))
-        s = LoadSound(path);
+    const char *resolved = resolveAssetPath(path);
+    if (FileExists(resolved))
+        s = LoadSound(resolved);
     return s;
 }
 
 Music loadMusicSafe(const char *path)
 {
     Music m = {0};
-    if (FileExists(path))
-        m = LoadMusicStream(path);
+    const char *resolved = resolveAssetPath(path);
+    if (FileExists(resolved))
+        m = LoadMusicStream(resolved);
     return m;
 }
 

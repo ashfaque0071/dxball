@@ -53,12 +53,18 @@ jobs:
           ~/emsdk/emsdk install 6.0.10
           ~/emsdk/emsdk activate 6.0.10
 
+      # tools/optimize_web_assets.sh re-encodes assets/ for the web. Without
+      # these it still builds, but falls back to shipping the originals and
+      # the download grows from ~14 MB back to ~70 MB.
+      - name: Install asset optimisation tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pngquant ffmpeg
+
       # raylib is downloaded and compiled once, then reused across runs.
       - name: Cache raylib web build
         uses: actions/cache@v4
         with:
           path: build/web-deps
-          key: raylib-5.5-web
+          key: raylib-5.5-web-jpg
 
       # Activated here in bash rather than relying on build_web.sh to do it:
       # emsdk_env.sh finds itself through $BASH_SOURCE and cannot do so under

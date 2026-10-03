@@ -21,6 +21,13 @@ DEPS_DIR=build/web-deps
 RAYLIB_SRC="${DEPS_DIR}/raylib-${RAYLIB_VERSION}/src"
 OUT_DIR=dist/web
 ZIP_PATH=dist/dxball-web-itch.zip
+WEB_ASSETS=build/web-assets
+
+# raylib leaves JPEG decoding out by default. The web build needs it because
+# tools/optimize_web_assets.sh re-encodes every fully opaque PNG as JPEG, which
+# is most of the saving that keeps the download reasonable.
+RAYLIB_CFLAGS="-DSUPPORT_FILEFORMAT_JPG"
+RAYLIB_STAMP="${RAYLIB_SRC}/.dxball-build-flags"
 
 clean=0
 make_zip=1
@@ -127,6 +134,14 @@ fi
 
 mkdir -p "$DEPS_DIR"
 
+# A libraylib.a left over from a build with different flags would silently
+# lack JPEG support, so it is rebuilt whenever the flags change.
+if [ -f "${RAYLIB_SRC}/libraylib.a" ] &&
+   [ "$(cat "$RAYLIB_STAMP" 2>/dev/null || echo none)" != "$RAYLIB_CFLAGS" ]; then
+  echo "raylib build flags changed; rebuilding raylib"
+  rm -f "${RAYLIB_SRC}/libraylib.a"
+fi
+
 if [ ! -f "${RAYLIB_SRC}/libraylib.a" ]; then
   archive="${DEPS_DIR}/raylib-${RAYLIB_VERSION}.tar.gz"
 
@@ -157,8 +172,10 @@ if [ ! -f "${RAYLIB_SRC}/libraylib.a" ]; then
   fi
 
   echo "Building raylib ${RAYLIB_VERSION} for PLATFORM_WEB"
-  ( cd "$RAYLIB_SRC" && make PLATFORM=PLATFORM_WEB RAYLIB_BUILD_MODE=RELEASE -B >/dev/null )
+  ( cd "$RAYLIB_SRC" && make PLATFORM=PLATFORM_WEB RAYLIB_BUILD_MODE=RELEASE \
+      CUSTOM_CFLAGS="$RAYLIB_CFLAGS" -B >/dev/null )
   [ -f "${RAYLIB_SRC}/libraylib.a" ] || die "the raylib web build did not produce libraylib.a"
+  printf '%s' "$RAYLIB_CFLAGS" > "$RAYLIB_STAMP"
 fi
 
 echo "raylib: ${RAYLIB_SRC}/libraylib.a"
@@ -183,6 +200,9 @@ for f in $on_disk; do
     *) die "$f exists in src/ but is not listed in build_web.sh (add it there and to run.sh / build.bat)" ;;
   esac
 done
+
+echo "Preparing web assets"
+./tools/optimize_web_assets.sh assets "$WEB_ASSETS"
 
 echo "Compiling and linking the WebAssembly build"
 
@@ -216,7 +236,8 @@ emcc -std=c99 -Wall -Wextra -Wno-unused-parameter -O3 \
   --shell-file src/web/shell.html \
   --pre-js src/web/pre.js \
   --js-library src/web/library_dxball.js \
-  --preload-file assets@/assets
+  --use-preload-cache \
+  --preload-file "$WEB_ASSETS"@/assets
 
 [ -f "$OUT_DIR/index.html" ] || die "the link step did not produce $OUT_DIR/index.html"
 

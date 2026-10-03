@@ -101,6 +101,15 @@ a rewrite: it shares every source file with the desktop builds.
 - `make`, `curl`, and `zip`, which macOS and most Linux distributions already
   provide. On macOS they come with the Xcode Command Line Tools
   (`xcode-select --install`).
+- **Recommended:** `ffmpeg` and `pngquant`, used to re-encode the artwork for
+  the web (see [Download size](#download-size)). Without them the build still
+  works, but ships the full-size originals and the download grows from about
+  14 MB to about 70 MB.
+
+  ```sh
+  brew install ffmpeg pngquant oxipng        # macOS
+  sudo apt install ffmpeg pngquant oxipng    # Debian / Ubuntu
+  ```
 
 Nothing else is needed. `build_web.sh` downloads the pinned raylib 5.5 source,
 verifies its SHA-256 checksum, and builds it for the web itself. raylib 5.5 is
@@ -154,6 +163,43 @@ can be verified later.
 `build/` and `dist/` are generated directories and are listed in `.gitignore`
 along with the native executables and the personal `saves/` directory. None of
 them belong in version control.
+
+### Download size
+
+`assets/` weighs about 71 MB, which is far too much for a browser game: a
+player would stare at the loading bar for minutes before the menu appeared.
+Shipping it as-is is the single biggest thing that would stop anyone playing.
+
+`tools/optimize_web_assets.sh` therefore builds a re-encoded copy into
+`build/web-assets/`, and that copy is what gets packaged:
+
+| Source | Shipped as | Why |
+| --- | --- | --- |
+| PNG with no transparency | JPEG, quality ~88 | About 6× smaller. 15 of the 44 images, including every level background, have no alpha at all. |
+| PNG that uses alpha | PNG, palette-quantised | About 4× smaller with alpha intact, for sprite atlases and overlays. |
+| WAV | OGG Vorbis | About 15× smaller. Vorbis rather than MP3 because MP3's encoder padding would put an audible gap at the loop point of the music. |
+| Fonts, licences | copied | Already small. |
+
+The result is **about 14 MB instead of 71 MB**, roughly a 5× faster first load.
+Two things make this safe:
+
+- **The originals are never touched.** `assets/` keeps the full-quality
+  artwork, so the macOS and Windows builds are byte-for-byte unaffected and
+  nothing is lost from the repository. Only the browser copy is compressed.
+- **No asset path changes.** `resolveAssetPath()` in `src/assets.c` looks for
+  the original name first and falls back to the re-encoded extension, so the
+  game still asks for `assets/backgrounds/level_1.png` either way.
+
+The web build of raylib is compiled with `-DSUPPORT_FILEFORMAT_JPG`, which
+raylib leaves out by default, so it can decode the JPEGs.
+
+Emscripten's `--use-preload-cache` is also enabled: the asset bundle is stored
+in the browser's cache on first visit, so returning players skip the download
+entirely.
+
+If `ffmpeg` or `pngquant` is missing the script says so and copies the files
+through unchanged — the build still succeeds, it is just a much larger
+download.
 
 ### Running it locally
 
@@ -328,6 +374,8 @@ What this means in practice:
 ├── saves/              Player progress, unlocks, scores, and settings (ignored)
 ├── src/                Game source and header files
 │   └── web/            Web shell page and Emscripten glue (web build only)
+├── tools/
+│   └── optimize_web_assets.sh   Re-encodes assets/ for the web build
 ├── build.bat           Windows build-and-run script
 ├── build_web.sh        WebAssembly build and itch.io packaging script
 └── run.sh              macOS build-and-run script
