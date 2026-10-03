@@ -186,18 +186,40 @@
     var scale = Math.min(w / 4, h / 3);
     if (!(scale > 0)) return;
 
+    var width = Math.floor(scale * 4) + "px";
+    var height = Math.floor(scale * 3) + "px";
+
+    /* Written only when they actually differ. This function is also driven by
+       a MutationObserver on the canvas's own attributes, so assigning
+       unconditionally would retrigger it forever. */
+    if (canvas.style.width !== width) canvas.style.width = width;
+    if (canvas.style.height !== height) canvas.style.height = height;
+
     /* The stylesheet's max-width/max-height are only a pre-script fallback.
        Left in place they would clamp one axis of the size computed here and
        stretch the picture, so they are dropped once this runs. */
-    canvas.style.maxWidth = "none";
-    canvas.style.maxHeight = "none";
-    canvas.style.width = Math.floor(scale * 4) + "px";
-    canvas.style.height = Math.floor(scale * 3) + "px";
+    if (canvas.style.maxWidth !== "none") canvas.style.maxWidth = "none";
+    if (canvas.style.maxHeight !== "none") canvas.style.maxHeight = "none";
   }
+
   window.addEventListener("resize", fitCanvas);
   window.addEventListener("orientationchange", fitCanvas);
   document.addEventListener("fullscreenchange", fitCanvas);
   if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(frame);
+
+  /* Emscripten sizes the canvas itself whenever raylib creates or resizes the
+     window, and its updateCanvasDimensions() does
+     canvas.style.removeProperty('width'/'height'). That runs after the first
+     fitCanvas() call, which would otherwise leave the element at its raw
+     1200x900 backbuffer size and overflow the page. Watching the canvas's own
+     attributes puts the fitted size back each time. */
+  if (window.MutationObserver) {
+    new MutationObserver(fitCanvas).observe(canvas, {
+      attributes: true,
+      attributeFilter: ["style", "width", "height"]
+    });
+  }
+
   fitCanvas();
 
   /* ---- Fullscreen ------------------------------------------------------
