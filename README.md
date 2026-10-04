@@ -2,7 +2,7 @@
 
 A wizarding-themed brick-breaker written in C99 with
 [raylib](https://www.raylib.com/). The game includes seven levels, multiple
-brick and power-up types, adjustable difficulty, keyboard or mouse paddle
+brick and power-up types, adjustable difficulty, keyboard, mouse, or touch paddle
 control, resumable games, level selection, music, sound effects, and local
 high-score tracking.
 
@@ -291,6 +291,11 @@ dxball.exe
 | Gameplay | `P` or `Esc` | Pause or resume the game |
 | Paused or game over | `R` | Restart the current level |
 | End screen | `M` | Return to the main menu |
+| Mobile menus | Tap | Select buttons and chambers |
+| Mobile name entry | On-screen text field and Continue | Enter a player name |
+| Mobile gameplay | Drag a finger across the game | Move the paddle |
+| Mobile gameplay | Tap the game or Launch | Launch a waiting ball |
+| Mobile gameplay | Pause / Resume button | Pause or resume |
 | Developer shortcut | `Shift` + `L` | Clear the current level |
 
 The objective is to break every destructible brick without running out of
@@ -522,18 +527,18 @@ to or posts to itch.io on your behalf.
    4:3 size such as **960 × 720** (or 800 × 600 / 1024 × 768). The page scales
    the canvas to fit its container and preserves the aspect ratio, so a 4:3
    frame leaves no bars.
-6. **Enable fullscreen.** Tick **"Fullscreen button"**. The page also provides
-   its own fullscreen button beneath the canvas, so either works. Leaving
-   *"Mobile friendly"* off is reasonable: the game needs a keyboard or a mouse.
+6. **Enable fullscreen and mobile play.** Tick **"Fullscreen button"** and
+   **"Mobile friendly"**. The page also provides its own fullscreen button,
+   touch paddle control, and large Start, Launch, and Pause buttons.
 7. **Save as a draft first.** Set *Visibility & access* to **Draft** (or
    **Restricted**) and save. Do not set it to Public yet.
 8. **Test the uploaded build before publishing.** Open the draft page and
    confirm that it loads to the main menu, that the paddle responds to the
-   arrow keys and the mouse, that sound starts after the first click, and that
-   a setting survives a page reload. Only then set the project to Public.
+   arrow keys, mouse, and touch, that sound starts after the first interaction,
+   and that a setting survives a page reload. Only then set the project to Public.
 
 A good embed description is worth adding: mention that the game is played with
-the mouse or arrow keys, and that **high scores are stored locally in the
+touch, mouse, or arrow keys, and that **high scores are stored locally in the
 player's own browser** rather than on a server.
 
 ## Hosting on GitHub Pages

@@ -7,6 +7,7 @@
 #include "render.h"
 #include "levels.h"
 #include "theme.h"
+#include "input.h"
 
 
 static void drawMenuBackdrop(Assets *a, float darkness)
@@ -188,7 +189,7 @@ static void drawSettingsScreen(Game *g, Assets *a)
     drawCenteredFontText(g->titleFont, "WIZARDING SETTINGS", SCREEN_W / 2.0f, 111, 25, 1.0f, WIZARD_BURGUNDY);
     drawCenteredFontText(g->font, "TUNE YOUR BROOM AND SPELLS", SCREEN_W / 2.0f, 135, 11, 1.0f, WIZARD_INK_MUTED);
 
-    static const char *labels[] = {"SOUND", "SNITCH SPEED", "BROOM SPEED", "DIFFICULTY", "MOUSE / TOUCH"};
+    static const char *labels[] = {"SOUND", "SNITCH SPEED", "BROOM SPEED", "DIFFICULTY", "MOUSE MOVE"};
     for (int i = 0; i < 5; i++)
     {
         const float size = 16.0f;
@@ -274,7 +275,7 @@ static void drawMainMenu(Game *g, Assets *a)
     drawWizardButton(a->buttonPlate, g->font, credits, "CREDITS", 11,
                      CheckCollisionPointRec(mouse, credits));
 
-    const char *hint = "ENTER TO BEGIN";
+    const char *hint = inputTouchMode() ? "TAP PLAY TO BEGIN" : "ENTER TO BEGIN";
     drawSolidFontText(g->font, hint,
                       (Vector2){18, menuHintCenterY() - MeasureTextEx(g->font, hint, 11, 1.2f).y / 2.0f},
                       11, 1.2f, ASTRAL_TEXT);
@@ -441,7 +442,10 @@ static void drawNameEntry(Game *g, Assets *a)
         Vector2 size = MeasureTextEx(g->font, shown, 24, 0.8f);
         DrawRectangle((int)(SCREEN_W / 2.0f + size.x / 2 + 4), (int)(fieldMidY - 11.5f), 2, 23, ASTRAL_TEAL);
     }
-    drawCenteredFontText(g->font, "TYPE A NAME AND PRESS ENTER", SCREEN_W / 2.0f, 366, 13, 1.0f, ASTRAL_MUTED);
+    drawCenteredFontText(g->font,
+                         inputTouchMode() ? "TYPE BELOW AND TAP CONTINUE"
+                                          : "TYPE A NAME AND PRESS ENTER",
+                         SCREEN_W / 2.0f, 366, 13, 1.0f, ASTRAL_MUTED);
 }
 
 void drawMenuScreens(Game *g, Assets *a)

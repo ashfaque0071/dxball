@@ -9,6 +9,111 @@
 #include "render.h"
 #include "storage.h"
 
+#if DXBALL_WEB
+#include <emscripten/emscripten.h>
+
+static Vector2 touchPosition;
+static int touchActive;
+static int touchPressed;
+static int touchMode;
+static int launchPressed;
+static int backPressed;
+static double lastTouchTime = -1000.0;
+
+EMSCRIPTEN_KEEPALIVE void dxballTouchMode(int enabled)
+{
+    touchMode = enabled != 0;
+}
+
+/* phase: 0 down, 1 move, 2 up, 3 cancel. A tap is delivered on release so a
+   drag can position the paddle without also launching the ball. */
+EMSCRIPTEN_KEEPALIVE void dxballTouchPointer(int phase, int x, int y, int tap)
+{
+    touchPosition = (Vector2){(float)x, (float)y};
+    lastTouchTime = GetTime();
+    if (phase == 0 || phase == 1)
+        touchActive = 1;
+    else
+    {
+        touchActive = 0;
+        if (phase == 2 && tap)
+            touchPressed = 1;
+    }
+}
+
+EMSCRIPTEN_KEEPALIVE void dxballTouchAction(int action)
+{
+    if (action == 1)
+        launchPressed = 1;
+    else if (action == 2)
+        backPressed = 1;
+}
+#endif
+
+int inputPressed(void)
+{
+#if DXBALL_WEB
+    return touchPressed ||
+           (GetTime() - lastTouchTime > 0.7 && IsMouseButtonPressed(MOUSE_LEFT_BUTTON));
+#else
+    return IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+#endif
+}
+
+Vector2 inputPosition(void)
+{
+#if DXBALL_WEB
+    if (touchActive || touchPressed)
+        return touchPosition;
+#endif
+    return getMouseDesignPosition();
+}
+
+int inputTouchActive(void)
+{
+#if DXBALL_WEB
+    return touchActive;
+#else
+    return 0;
+#endif
+}
+
+int inputLaunchPressed(void)
+{
+#if DXBALL_WEB
+    return launchPressed;
+#else
+    return 0;
+#endif
+}
+
+int inputBackPressed(void)
+{
+#if DXBALL_WEB
+    return backPressed;
+#else
+    return 0;
+#endif
+}
+
+int inputTouchMode(void)
+{
+#if DXBALL_WEB
+    return touchMode;
+#else
+    return 0;
+#endif
+}
+
+void inputEndFrame(void)
+{
+#if DXBALL_WEB
+    touchPressed = 0;
+    launchPressed = 0;
+    backPressed = 0;
+#endif
+}
+
 static int clickedIn(Vector2 mouse, Rectangle r)
 {
     return CheckCollisionPointRec(mouse, r);
@@ -16,7 +121,7 @@ static int clickedIn(Vector2 mouse, Rectangle r)
 
 static void handleEscape(Game *g, Audio *au)
 {
-    if (!IsKeyPressed(KEY_ESCAPE))
+    if (!IsKeyPressed(KEY_ESCAPE) && !inputBackPressed())
         return;
 
     if (g->gameStarted && !g->levelIntro && !g->levelComplete && !g->gameOver && !g->gameWon)
@@ -77,7 +182,7 @@ static void handleEscape(Game *g, Audio *au)
     }
 }
 
-static void confirmPlayerName(Game *g, Audio *au)
+void confirmPlayerName(Game *g, Audio *au)
 {
     if (g->playerName[0] == '\0')
         snprintf(g->playerName, MAX_NAME, "PLAYER");
@@ -163,12 +268,12 @@ static void handleHudPauseClick(Game *g, Audio *au)
 {
     if (!g->gameStarted || g->paused || g->levelIntro || g->gameWon || g->gameOver || g->levelComplete)
         return;
-    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+    if (!inputPressed())
         return;
 
     Rectangle rect = hudPauseButtonRect();
 
-    if (clickedIn(getMouseDesignPosition(), rect))
+    if (clickedIn(inputPosition(), rect))
     {
         g->paused = 1;
         g->clickConsumed = 1;
@@ -178,10 +283,10 @@ static void handleHudPauseClick(Game *g, Audio *au)
 
 static void handlePauseMenuClick(Game *g, Audio *au)
 {
-    if (!g->paused || !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+    if (!g->paused || !inputPressed())
         return;
 
-    Vector2 mouse = getMouseDesignPosition();
+    Vector2 mouse = inputPosition();
 
     Rectangle rows[3];
     for (int i = 0; i < 3; i++)
@@ -492,10 +597,10 @@ static void handleMainMenuClick(Game *g, Audio *au, Vector2 mouse)
 
 static void handleMenuClick(Game *g, Audio *au)
 {
-    if (g->gameStarted || !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+    if (g->gameStarted || !inputPressed())
         return;
 
-    Vector2 mouse = getMouseDesignPosition();
+    Vector2 mouse = inputPosition();
 
     if (g->showNameEntry)
     {
@@ -543,8 +648,8 @@ static void handleEndScreenInput(Game *g)
     if (!g->gameStarted || !(g->levelComplete || g->gameOver || g->gameWon))
         return;
 
-    int clicked = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
-    Vector2 mouse = getMouseDesignPosition();
+    int clicked = inputPressed();
+    Vector2 mouse = inputPosition();
 
 
     float menuButtonX = g->gameWon ? SCREEN_W / 2.0f : END_MENU_BUTTON_X;

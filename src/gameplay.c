@@ -11,13 +11,14 @@
 #include "powerups.h"
 #include "render.h"
 #include "storage.h"
+#include "input.h"
 
 
 static void updateLevelIntro(Game *g)
 {
 
     if (!g->justStartedGame &&
-        (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_LEFT_BUTTON)))
+        (IsKeyPressed(KEY_ENTER) || inputPressed() || inputLaunchPressed()))
     {
         g->levelIntro = 0;
         g->ballLaunched = 0;
@@ -34,7 +35,9 @@ static void updatePaddle(Game *g)
         g->paddleX += g->paddleSpeed;
 
 
-    if (g->mouseControlEnabled && GetMouseDelta().x != 0.0f)
+    if (inputTouchActive())
+        g->paddleX = inputPosition().x - g->paddleW / 2;
+    else if (g->mouseControlEnabled && GetMouseDelta().x != 0.0f)
         g->paddleX = getMouseDesignPosition().x - g->paddleW / 2;
 
     if (g->paddleX < 0)
@@ -78,8 +81,8 @@ static void updateWaitingBall(Game *g)
     g->balls[0].x = g->paddleX + g->paddleW / 2;
     g->balls[0].y = g->paddleY - g->balls[0].radius - 2;
 
-    if (IsKeyPressed(KEY_SPACE) ||
-        (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && !g->clickConsumed))
+    if (IsKeyPressed(KEY_SPACE) || inputLaunchPressed() ||
+        (inputPressed() && !g->clickConsumed))
     {
         g->ballLaunched = 1;
         launchBall(&g->balls[0]);

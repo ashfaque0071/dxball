@@ -19,6 +19,7 @@
     padding: 0;
     width: 100%;
     height: 100%;
+    height: 100dvh;
     /* The game is driven entirely by the canvas, so the page itself must never
        scroll: arrow keys and space would otherwise move the document. */
     overflow: hidden;
@@ -38,6 +39,7 @@
   }
 
   #frame {
+    position: relative;
     flex: 1 1 auto;
     width: 100%;
     min-height: 0;
@@ -95,6 +97,52 @@
   }
   #fullscreen:hover { background: #1d1730; }
 
+  #mobile-controls {
+    display: none;
+    position: absolute;
+    z-index: 2;
+    gap: 10px;
+  }
+  body.touch-device #mobile-controls { display: flex; }
+  #mobile-controls button, #name-form button {
+    min-height: 48px;
+    border: 1px solid var(--brass);
+    border-radius: 12px;
+    background: #2c1827;
+    color: #f2dfb2;
+    font: 700 15px "Trebuchet MS", system-ui, sans-serif;
+    letter-spacing: 0.06em;
+    touch-action: manipulation;
+  }
+  #mobile-controls button { flex: 1; min-width: 0; }
+  #mobile-controls button[hidden] { display: none; }
+
+  #name-form {
+    position: absolute;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--brass);
+    border-radius: 12px;
+    background: rgba(19, 15, 28, 0.96);
+  }
+  #name-form[hidden] { display: none; }
+  #name-form input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--brass);
+    border-radius: 8px;
+    background: #0c0912;
+    color: #f2dfb2;
+    font: 18px "Trebuchet MS", system-ui, sans-serif;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  body.touch-device #hint { display: none; }
+  body.touch-device #bar { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+
   /* Loading overlay */
   #loading {
     position: fixed;
@@ -147,6 +195,16 @@
   <canvas id="canvas" width="1200" height="900" tabindex="0"
           aria-label="DX Ball game screen"
           oncontextmenu="event.preventDefault()"></canvas>
+  <div id="mobile-controls" aria-label="Touch game controls">
+    <button id="touch-launch" type="button">LAUNCH</button>
+    <button id="touch-back" type="button">BACK</button>
+  </div>
+  <form id="name-form" hidden>
+    <input id="mobile-name" aria-label="Wizard name" maxlength="12"
+           autocomplete="off" autocapitalize="characters" spellcheck="false"
+           placeholder="YOUR NAME">
+    <button type="submit">CONTINUE</button>
+  </form>
 </div>
 
 <div id="bar">
@@ -174,6 +232,11 @@
   var fill = document.getElementById("fill");
   var statusEl = document.getElementById("status");
   var assetStatus = document.getElementById("asset-status");
+  var mobileControls = document.getElementById("mobile-controls");
+  var launchButton = document.getElementById("touch-launch");
+  var backButton = document.getElementById("touch-back");
+  var nameForm = document.getElementById("name-form");
+  var nameInput = document.getElementById("mobile-name");
   var runtimeInitialized = false;
   var resolveRuntime;
   var runtimeReady = new Promise(function (resolve) { resolveRuntime = resolve; });
@@ -253,11 +316,171 @@
     }
   }
 
+  /* ---- Phone and tablet input ------------------------------------------
+     Pointer coordinates are converted straight to the 800x600 game design
+     space. Touch release makes a menu tap; dragging moves the paddle without
+     accidentally launching the ball. */
+  var activeTouch = null;
+  var touchStartX = 0;
+  var touchStartY = 0;
+  var touchStartTime = 0;
+  var mobileLoopStarted = false;
+  var lastControlLayout = "";
+
+  function enableTouchUi() {
+    if (!document.body.classList.contains("touch-device"))
+      document.body.classList.add("touch-device");
+    if (runtimeInitialized) {
+      Module._dxballTouchMode(1);
+      if (!mobileLoopStarted) {
+        mobileLoopStarted = true;
+        requestAnimationFrame(syncMobileUi);
+      }
+    }
+    positionMobileUi();
+  }
+
+  function touchPoint(event) {
+    var rect = canvas.getBoundingClientRect();
+    return [Math.round((event.clientX - rect.left) * 800 / rect.width),
+            Math.round((event.clientY - rect.top) * 600 / rect.height)];
+  }
+
+  function sendTouch(phase, event, tap) {
+    if (!runtimeInitialized) return;
+    var point = touchPoint(event);
+    Module._dxballTouchPointer(phase, point[0], point[1], tap ? 1 : 0);
+  }
+
+  canvas.addEventListener("pointerdown", function (event) {
+    if (event.pointerType === "mouse") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (activeTouch !== null) return;
+    enableTouchUi();
+    activeTouch = event.pointerId;
+    touchStartX = event.clientX;
+    touchStartY = event.clientY;
+    touchStartTime = performance.now();
+    canvas.setPointerCapture(event.pointerId);
+    sendTouch(0, event, false);
+  }, { capture: true, passive: false });
+
+  canvas.addEventListener("pointermove", function (event) {
+    if (event.pointerId !== activeTouch) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    sendTouch(1, event, false);
+  }, { capture: true, passive: false });
+
+  function finishTouch(event, cancelled) {
+    if (event.pointerId !== activeTouch) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    var distance = Math.hypot(event.clientX - touchStartX, event.clientY - touchStartY);
+    var tap = !cancelled && distance < 16 && performance.now() - touchStartTime < 650;
+    sendTouch(cancelled ? 3 : 2, event, tap);
+    activeTouch = null;
+  }
+  canvas.addEventListener("pointerup", function (event) {
+    finishTouch(event, false);
+  }, { capture: true, passive: false });
+  canvas.addEventListener("pointercancel", function (event) {
+    finishTouch(event, true);
+  }, { capture: true, passive: false });
+
+  ["touchstart", "touchmove", "touchend", "touchcancel"].forEach(function (type) {
+    canvas.addEventListener(type, function (event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, { capture: true, passive: false });
+  });
+
+  function syncMobileUi() {
+    var state = Module._dxballMobileState();
+    var naming = !!(state & 1);
+    var playing = !!(state & 2);
+    var paused = !!(state & 4);
+    var intro = !!(state & 8);
+    var finishedLevel = !!(state & 16);
+    var ballLaunched = !!(state & 32);
+    var secondaryMenu = !!(state & 64);
+
+    if (nameForm.hidden === naming) {
+      nameForm.hidden = !naming;
+      if (naming) nameInput.value = "";
+      positionMobileUi();
+    }
+    launchButton.hidden = !playing || paused || finishedLevel || ballLaunched;
+    backButton.hidden = !playing && !secondaryMenu;
+    launchButton.textContent = intro ? "START" : "LAUNCH";
+    backButton.textContent = playing
+      ? (paused ? "RESUME" : (intro || finishedLevel ? "MENU" : "PAUSE"))
+      : "BACK";
+    var controlLayout = [launchButton.hidden, backButton.hidden,
+                         nameForm.hidden].join(":");
+    if (controlLayout !== lastControlLayout) {
+      lastControlLayout = controlLayout;
+      positionMobileUi();
+    }
+    requestAnimationFrame(syncMobileUi);
+  }
+
+  launchButton.addEventListener("click", function () {
+    if (runtimeInitialized) Module._dxballTouchAction(1);
+  });
+  backButton.addEventListener("click", function () {
+    if (runtimeInitialized) Module._dxballTouchAction(2);
+  });
+  nameInput.addEventListener("input", function () {
+    var clean = nameInput.value.replace(/[^a-z0-9]/gi, "").slice(0, 12);
+    if (nameInput.value !== clean) nameInput.value = clean;
+  });
+  nameForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (!runtimeInitialized) return;
+    Module.ccall("dxballMobileName", null, ["string"], [nameInput.value]);
+    nameInput.blur();
+    canvas.focus();
+  });
+
+  function positionMobileUi() {
+    if (!document.body.classList.contains("touch-device")) return;
+    var rect = canvas.getBoundingClientRect();
+    var box = frame.getBoundingClientRect();
+    var gutter = box.right - rect.right;
+    if (window.innerWidth > window.innerHeight && gutter >= 110) {
+      mobileControls.style.flexDirection = "column";
+      mobileControls.style.width = Math.min(150, gutter - 16) + "px";
+      mobileControls.style.left = (rect.right - box.left + 8) + "px";
+      mobileControls.style.top = (rect.top - box.top +
+        (rect.height - mobileControls.offsetHeight) / 2) + "px";
+    } else {
+      mobileControls.style.flexDirection = "row";
+      mobileControls.style.width = Math.max(0, rect.width - 12) + "px";
+      mobileControls.style.left = (rect.left - box.left + 6) + "px";
+      var below = rect.bottom - box.top + 10;
+      mobileControls.style.top =
+        (below + mobileControls.offsetHeight <= frame.clientHeight - 4
+          ? below : rect.bottom - box.top - mobileControls.offsetHeight - 8) + "px";
+    }
+    nameForm.style.width = Math.min(340, rect.width * 0.72) + "px";
+    nameForm.style.left = (rect.left - box.left + rect.width / 2) + "px";
+    nameForm.style.top = (rect.top - box.top + rect.height * 0.56) + "px";
+    nameForm.style.transform = "translate(-50%, -50%)";
+  }
+
+  if (window.matchMedia("(pointer: coarse)").matches ||
+      navigator.maxTouchPoints > 0 || window.innerWidth <= 600)
+    enableTouchUi();
+
   /* ---- Responsive 4:3 sizing -------------------------------------------
      The canvas keeps its 1200x900 backbuffer at every display size; only the
      CSS box changes, so the game never distorts and never re-allocates its
      render target. */
   function fitCanvas() {
+    if (window.innerWidth <= 600 && !document.body.classList.contains("touch-device"))
+      enableTouchUi();
     var cs = window.getComputedStyle(frame);
     var w = frame.clientWidth -
             parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
@@ -281,6 +504,7 @@
        stretch the picture, so they are dropped once this runs. */
     if (canvas.style.maxWidth !== "none") canvas.style.maxWidth = "none";
     if (canvas.style.maxHeight !== "none") canvas.style.maxHeight = "none";
+    positionMobileUi();
   }
 
   window.addEventListener("resize", fitCanvas);
@@ -403,6 +627,7 @@
       runtimeInitialized = true;
       finishLoading();
       resolveRuntime();
+      if (document.body.classList.contains("touch-device")) enableTouchUi();
       /* Give the startup package full network priority until it is ready. */
       loadGamePackages();
     }

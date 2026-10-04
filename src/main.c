@@ -3,6 +3,7 @@
 #include "raylib.h"
 
 #include <stdlib.h>
+#include <ctype.h>
 #include <time.h>
 
 #if DXBALL_WEB
@@ -60,6 +61,36 @@ typedef struct
 static App app;
 
 #if DXBALL_WEB
+EMSCRIPTEN_KEEPALIVE int dxballMobileState(void)
+{
+    Game *g = &app.game;
+    return (g->showNameEntry ? 1 : 0) |
+           (g->gameStarted ? 2 : 0) |
+           (g->paused ? 4 : 0) |
+           (g->levelIntro ? 8 : 0) |
+           ((g->levelComplete || g->gameOver || g->gameWon) ? 16 : 0) |
+           (g->ballLaunched ? 32 : 0) |
+           ((g->showNameEntry || g->showLevelSelect || g->showResumePrompt ||
+             g->showHowToPlay || g->showHighScore || g->showSettings ||
+             g->showCredits) ? 64 : 0);
+}
+
+EMSCRIPTEN_KEEPALIVE void dxballMobileName(const char *name)
+{
+    if (!app.game.showNameEntry || name == NULL)
+        return;
+
+    int length = 0;
+    for (const unsigned char *p = (const unsigned char *)name;
+         *p != '\0' && length < MAX_NAME_CHARS; p++)
+    {
+        if (*p < 128 && isalnum(*p))
+            app.game.playerName[length++] = (char)toupper(*p);
+    }
+    app.game.playerName[length] = '\0';
+    confirmPlayerName(&app.game, &app.audio);
+}
+
 EMSCRIPTEN_KEEPALIVE void dxballCoreReady(void)
 {
     app.coreReady = 1;
@@ -254,7 +285,7 @@ static void appFrame(void)
 #if DXBALL_WEB
     if (requestedLevel(game) > app.loadedLevelCount)
     {
-        if (IsKeyPressed(KEY_ESCAPE))
+        if (IsKeyPressed(KEY_ESCAPE) || inputBackPressed())
         {
             if (game->gameStarted)
                 game->returnToMenuRequested = 1;
@@ -390,6 +421,7 @@ static void webFrame(void)
         app.loadedLevelCount++;
     }
     appFrame();
+    inputEndFrame();
 
     /* Nothing in the web build sets quitRequested, but honour it anyway rather
        than keeping a dead frame callback alive. */
