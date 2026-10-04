@@ -13,8 +13,6 @@ void confirmPlayerName(Game *g, Audio *au);
 int inputPressed(void);
 Vector2 inputPosition(void);
 int inputTouchActive(void);
-int inputLaunchPressed(void);
-int inputBackPressed(void);
 int inputTouchMode(void);
 void inputEndFrame(void);
 

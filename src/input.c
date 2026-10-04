@@ -16,8 +16,6 @@ static Vector2 touchPosition;
 static int touchActive;
 static int touchPressed;
 static int touchMode;
-static int launchPressed;
-static int backPressed;
 static double lastTouchTime = -1000.0;
 
 EMSCRIPTEN_KEEPALIVE void dxballTouchMode(int enabled)
@@ -41,13 +39,6 @@ EMSCRIPTEN_KEEPALIVE void dxballTouchPointer(int phase, int x, int y, int tap)
     }
 }
 
-EMSCRIPTEN_KEEPALIVE void dxballTouchAction(int action)
-{
-    if (action == 1)
-        launchPressed = 1;
-    else if (action == 2)
-        backPressed = 1;
-}
 #endif
 
 int inputPressed(void)
@@ -78,24 +69,6 @@ int inputTouchActive(void)
 #endif
 }
 
-int inputLaunchPressed(void)
-{
-#if DXBALL_WEB
-    return launchPressed;
-#else
-    return 0;
-#endif
-}
-
-int inputBackPressed(void)
-{
-#if DXBALL_WEB
-    return backPressed;
-#else
-    return 0;
-#endif
-}
-
 int inputTouchMode(void)
 {
 #if DXBALL_WEB
@@ -109,8 +82,6 @@ void inputEndFrame(void)
 {
 #if DXBALL_WEB
     touchPressed = 0;
-    launchPressed = 0;
-    backPressed = 0;
 #endif
 }
 
@@ -121,7 +92,7 @@ static int clickedIn(Vector2 mouse, Rectangle r)
 
 static void handleEscape(Game *g, Audio *au)
 {
-    if (!IsKeyPressed(KEY_ESCAPE) && !inputBackPressed())
+    if (!IsKeyPressed(KEY_ESCAPE))
         return;
 
     if (g->gameStarted && !g->levelIntro && !g->levelComplete && !g->gameOver && !g->gameWon)
@@ -212,6 +183,26 @@ static void handleNameEntry(Game *g, Audio *au)
 {
     if (!g->showNameEntry)
         return;
+#if DXBALL_WEB
+    if (inputTouchMode())
+    {
+        if (inputPressed())
+        {
+            Vector2 point = inputPosition();
+            if (clickedIn(point, nameContinueButtonRect()))
+            {
+                confirmPlayerName(g, au);
+                g->clickConsumed = 1;
+            }
+            else if (clickedIn(point, nameBackButtonRect()))
+            {
+                g->showNameEntry = 0;
+                g->clickConsumed = 1;
+            }
+        }
+        return;
+    }
+#endif
     int typed = GetCharPressed();
     while (typed > 0)
     {
@@ -511,7 +502,7 @@ static void handleSettingsClick(Game *g, Audio *au, Vector2 mouse)
         applyDifficulty(g, 2);
         playSoundSafe(au->ui);
     }
-    else if (clickedIn(mouse, mouseToggleRect))
+    else if (!inputTouchMode() && clickedIn(mouse, mouseToggleRect))
     {
         g->mouseControlEnabled = !g->mouseControlEnabled;
         playSoundSafe(au->ui);
@@ -597,7 +588,7 @@ static void handleMainMenuClick(Game *g, Audio *au, Vector2 mouse)
 
 static void handleMenuClick(Game *g, Audio *au)
 {
-    if (g->gameStarted || !inputPressed())
+    if (g->gameStarted || g->clickConsumed || !inputPressed())
         return;
 
     Vector2 mouse = inputPosition();
@@ -673,7 +664,7 @@ static void handleEndScreenInput(Game *g)
         END_MENU_BUTTON_W,
         END_MENU_BUTTON_H};
 
-    if (!clicked || !clickedIn(mouse, leftRect))
+    if (!clicked || (!g->levelComplete && !clickedIn(mouse, leftRect)))
         return;
 
     if (g->levelComplete)

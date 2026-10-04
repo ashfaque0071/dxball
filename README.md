@@ -292,10 +292,10 @@ dxball.exe
 | Paused or game over | `R` | Restart the current level |
 | End screen | `M` | Return to the main menu |
 | Mobile menus | Tap | Select buttons and chambers |
-| Mobile name entry | On-screen text field and Continue | Enter a player name |
+| Mobile name entry | Tap the name field, then in-game Continue or Done | Enter a player name |
 | Mobile gameplay | Drag a finger across the game | Move the paddle |
-| Mobile gameplay | Tap the game or Launch | Launch a waiting ball |
-| Mobile gameplay | Pause / Resume button | Pause or resume |
+| Mobile gameplay | Tap the game | Launch a waiting ball |
+| Mobile gameplay | Tap the in-game pause control | Pause or resume |
 | Developer shortcut | `Shift` + `L` | Clear the current level |
 
 The objective is to break every destructible brick without running out of
@@ -405,7 +405,7 @@ The files under `src/web/` are used only by the WebAssembly build and are not
 compiled into the desktop builds:
 
 - `src/web/shell.html`: the page that hosts the canvas — responsive 4:3 layout,
-  loading indicator, fullscreen button, and control hint;
+  loading indicator, and touch input bridge;
 - `src/web/pre.js`: mounts `saves/` on IndexedDB and loads it before `main()`;
   and
 - `src/web/library_dxball.js`: the one native function the game calls to flush
@@ -528,8 +528,8 @@ to or posts to itch.io on your behalf.
    the canvas to fit its container and preserves the aspect ratio, so a 4:3
    frame leaves no bars.
 6. **Enable fullscreen and mobile play.** Tick **"Fullscreen button"** and
-   **"Mobile friendly"**. The page also provides its own fullscreen button,
-   touch paddle control, and large Start, Launch, and Pause buttons.
+   **"Mobile friendly"**. Menus, the pause control, and game actions are
+   tapped inside the game; drag a finger to steer the paddle.
 7. **Save as a draft first.** Set *Visibility & access* to **Draft** (or
    **Restricted**) and save. Do not set it to Public yet.
 8. **Test the uploaded build before publishing.** Open the draft page and

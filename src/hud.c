@@ -4,6 +4,7 @@
 
 #include "hud.h"
 #include "render.h"
+#include "input.h"
 #include "ball.h"
 #include "bricks.h"
 #include "levels.h"
@@ -45,7 +46,9 @@ static void drawLevelIntro(Game *g, Assets *a)
     drawCenteredFontText(g->font, TextFormat("CHAMBER %d", g->level), 400, 270, 16, 1.8f, ASTRAL_BRASS_HI);
     drawAstralRule(400, 292, 190);
     drawCenteredFontText(g->titleFont, levelName(g->level), 400, 327, 21, 0.4f, ASTRAL_TEXT);
-    drawCenteredFontText(g->font, "PRESS ENTER TO OPEN THE WAY", 400, 378, 13, 1.0f, ASTRAL_MUTED);
+    drawCenteredFontText(g->font,
+                         inputTouchMode() ? "TAP TO OPEN THE WAY" : "PRESS ENTER TO OPEN THE WAY",
+                         400, 378, 13, 1.0f, ASTRAL_MUTED);
 }
 
 
@@ -245,7 +248,10 @@ static void drawLevelClear(Game *g, Assets *a)
         drawCenteredFontText(g->font, TextFormat("THIS CHAMBER  %d     BEST  %d",
                                                  g->lastLevelScore, g->levelHighScores[g->level - 1]),
                              SCREEN_W / 2.0f, 292, 16, 0.5f, ASTRAL_TEXT);
-    drawCenteredFontText(g->font, "ENTER CONTINUES TO THE NEXT CHAMBER", SCREEN_W / 2.0f, 332, 12, 0.8f, ASTRAL_MUTED);
+    drawCenteredFontText(g->font,
+                         inputTouchMode() ? "TAP TO CONTINUE TO THE NEXT CHAMBER"
+                                          : "ENTER CONTINUES TO THE NEXT CHAMBER",
+                         SCREEN_W / 2.0f, 332, 12, 0.8f, ASTRAL_MUTED);
     drawEndButton(g, a, END_RETRY_BUTTON_X, "NEXT CHAMBER");
     drawEndButton(g, a, END_MENU_BUTTON_X, "MAIN MENU");
 }
@@ -262,7 +268,9 @@ static void drawGameOverScreen(Game *g, Assets *a)
 {
     drawResultPanel(g, "THE MAGIC HAS FADED", "GAME OVER", ASTRAL_DANGER);
     drawCenteredFontText(g->font, TextFormat("SCORE  %d", g->score), SCREEN_W / 2.0f, 292, 20, 0.7f, ASTRAL_TEXT);
-    drawCenteredFontText(g->font, "R TO RETRY  /  M FOR MENU", SCREEN_W / 2.0f, 332, 12, 1.0f, ASTRAL_MUTED);
+    drawCenteredFontText(g->font,
+                         inputTouchMode() ? "TAP RETRY OR MAIN MENU" : "R TO RETRY  /  M FOR MENU",
+                         SCREEN_W / 2.0f, 332, 12, 1.0f, ASTRAL_MUTED);
     drawEndButton(g, a, END_RETRY_BUTTON_X, "RETRY");
     drawEndButton(g, a, END_MENU_BUTTON_X, "MAIN MENU");
 }

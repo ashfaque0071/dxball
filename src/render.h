@@ -83,6 +83,8 @@ Rectangle settingsDifficultyRect(int index);
 Rectangle pauseMenuButtonRect(int index);
 
 Rectangle hudPauseButtonRect(void);
+Rectangle nameContinueButtonRect(void);
+Rectangle nameBackButtonRect(void);
 
 
 void presentScreen(RenderTexture2D screen);

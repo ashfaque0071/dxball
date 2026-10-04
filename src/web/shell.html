@@ -66,82 +66,34 @@
     touch-action: none;
   }
 
-  #bar {
-    flex: 0 0 auto;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    flex-wrap: wrap;
-    padding: 6px 10px 10px;
-    font-size: 12.5px;
-    letter-spacing: 0.02em;
-  }
-
-  #hint { opacity: 0.78; text-align: center; }
-  #hint b { color: var(--brass); font-weight: 600; }
-  #asset-status { color: var(--brass); opacity: 0.85; }
-
-  #fullscreen {
-    font: inherit;
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  #asset-status {
+    position: fixed;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
     color: var(--brass);
-    background: var(--panel);
-    border: 1px solid rgba(216, 178, 106, 0.4);
-    border-radius: 999px;
-    padding: 5px 15px;
-    cursor: pointer;
+    font-size: 12px;
+    pointer-events: none;
   }
-  #fullscreen:hover { background: #1d1730; }
-
-  #mobile-controls {
-    display: none;
-    position: absolute;
-    z-index: 2;
-    gap: 10px;
-  }
-  body.touch-device #mobile-controls { display: flex; }
-  #mobile-controls button, #name-form button {
-    min-height: 48px;
-    border: 1px solid var(--brass);
-    border-radius: 12px;
-    background: #2c1827;
-    color: #f2dfb2;
-    font: 700 15px "Trebuchet MS", system-ui, sans-serif;
-    letter-spacing: 0.06em;
-    touch-action: manipulation;
-  }
-  #mobile-controls button { flex: 1; min-width: 0; }
-  #mobile-controls button[hidden] { display: none; }
 
   #name-form {
     position: absolute;
     z-index: 3;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    border: 1px solid var(--brass);
-    border-radius: 12px;
-    background: rgba(19, 15, 28, 0.96);
+    margin: 0;
+    padding: 0;
   }
   #name-form[hidden] { display: none; }
   #name-form input {
     width: 100%;
-    min-height: 44px;
-    border: 1px solid var(--brass);
-    border-radius: 8px;
-    background: #0c0912;
-    color: #f2dfb2;
-    font: 18px "Trebuchet MS", system-ui, sans-serif;
-    text-align: center;
-    text-transform: uppercase;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: transparent;
+    caret-color: transparent;
+    opacity: 0.02;
+    font-size: 20px;
+    touch-action: manipulation;
   }
-  body.touch-device #hint { display: none; }
-  body.touch-device #bar { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 
   /* Loading overlay */
   #loading {
@@ -184,9 +136,6 @@
   #status { font-size: 12.5px; opacity: 0.72; min-height: 1.2em; }
   #status.error { color: #ff9e9e; opacity: 1; }
 
-  /* In fullscreen the frame is the only thing on screen. */
-  #frame:fullscreen { background: #000; padding: 0; }
-  #frame:fullscreen #canvas { border-radius: 0; box-shadow: none; }
 </style>
 </head>
 <body>
@@ -195,28 +144,14 @@
   <canvas id="canvas" width="1200" height="900" tabindex="0"
           aria-label="DX Ball game screen"
           oncontextmenu="event.preventDefault()"></canvas>
-  <div id="mobile-controls" aria-label="Touch game controls">
-    <button id="touch-launch" type="button">LAUNCH</button>
-    <button id="touch-back" type="button">BACK</button>
-  </div>
   <form id="name-form" hidden>
     <input id="mobile-name" aria-label="Wizard name" maxlength="12"
-           autocomplete="off" autocapitalize="characters" spellcheck="false"
-           placeholder="YOUR NAME">
-    <button type="submit">CONTINUE</button>
+           autocomplete="off" autocapitalize="characters" enterkeyhint="done"
+           spellcheck="false">
   </form>
 </div>
 
-<div id="bar">
-  <span id="hint">
-    <b>&larr; &rarr;</b> or mouse to move &nbsp;·&nbsp;
-    <b>Space</b> launch &nbsp;·&nbsp;
-    <b>P</b> pause &nbsp;·&nbsp;
-    <b>Esc</b> back
-  </span>
-  <span id="asset-status" hidden></span>
-  <button id="fullscreen" type="button">Fullscreen</button>
-</div>
+<span id="asset-status" hidden></span>
 
 <div id="loading">
   <h1>DX Ball</h1>
@@ -232,9 +167,6 @@
   var fill = document.getElementById("fill");
   var statusEl = document.getElementById("status");
   var assetStatus = document.getElementById("asset-status");
-  var mobileControls = document.getElementById("mobile-controls");
-  var launchButton = document.getElementById("touch-launch");
-  var backButton = document.getElementById("touch-back");
   var nameForm = document.getElementById("name-form");
   var nameInput = document.getElementById("mobile-name");
   var runtimeInitialized = false;
@@ -325,7 +257,6 @@
   var touchStartY = 0;
   var touchStartTime = 0;
   var mobileLoopStarted = false;
-  var lastControlLayout = "";
 
   function enableTouchUi() {
     if (!document.body.classList.contains("touch-device"))
@@ -337,7 +268,7 @@
         requestAnimationFrame(syncMobileUi);
       }
     }
-    positionMobileUi();
+    positionNameField();
   }
 
   function touchPoint(event) {
@@ -397,44 +328,26 @@
   });
 
   function syncMobileUi() {
-    var state = Module._dxballMobileState();
-    var naming = !!(state & 1);
-    var playing = !!(state & 2);
-    var paused = !!(state & 4);
-    var intro = !!(state & 8);
-    var finishedLevel = !!(state & 16);
-    var ballLaunched = !!(state & 32);
-    var secondaryMenu = !!(state & 64);
-
+    var naming = !!Module._dxballMobileState();
     if (nameForm.hidden === naming) {
       nameForm.hidden = !naming;
-      if (naming) nameInput.value = "";
-      positionMobileUi();
-    }
-    launchButton.hidden = !playing || paused || finishedLevel || ballLaunched;
-    backButton.hidden = !playing && !secondaryMenu;
-    launchButton.textContent = intro ? "START" : "LAUNCH";
-    backButton.textContent = playing
-      ? (paused ? "RESUME" : (intro || finishedLevel ? "MENU" : "PAUSE"))
-      : "BACK";
-    var controlLayout = [launchButton.hidden, backButton.hidden,
-                         nameForm.hidden].join(":");
-    if (controlLayout !== lastControlLayout) {
-      lastControlLayout = controlLayout;
-      positionMobileUi();
+      if (naming) {
+        nameInput.value = "";
+      } else {
+        nameInput.blur();
+      }
+      positionNameField();
     }
     requestAnimationFrame(syncMobileUi);
   }
 
-  launchButton.addEventListener("click", function () {
-    if (runtimeInitialized) Module._dxballTouchAction(1);
-  });
-  backButton.addEventListener("click", function () {
-    if (runtimeInitialized) Module._dxballTouchAction(2);
-  });
   nameInput.addEventListener("input", function () {
     var clean = nameInput.value.replace(/[^a-z0-9]/gi, "").slice(0, 12);
     if (nameInput.value !== clean) nameInput.value = clean;
+    if (runtimeInitialized) Module.ccall("dxballMobileSetName", null, ["string"], [clean]);
+  });
+  nameInput.addEventListener("keydown", function (event) {
+    event.stopPropagation();
   });
   nameForm.addEventListener("submit", function (event) {
     event.preventDefault();
@@ -444,30 +357,14 @@
     canvas.focus();
   });
 
-  function positionMobileUi() {
+  function positionNameField() {
     if (!document.body.classList.contains("touch-device")) return;
     var rect = canvas.getBoundingClientRect();
     var box = frame.getBoundingClientRect();
-    var gutter = box.right - rect.right;
-    if (window.innerWidth > window.innerHeight && gutter >= 110) {
-      mobileControls.style.flexDirection = "column";
-      mobileControls.style.width = Math.min(150, gutter - 16) + "px";
-      mobileControls.style.left = (rect.right - box.left + 8) + "px";
-      mobileControls.style.top = (rect.top - box.top +
-        (rect.height - mobileControls.offsetHeight) / 2) + "px";
-    } else {
-      mobileControls.style.flexDirection = "row";
-      mobileControls.style.width = Math.max(0, rect.width - 12) + "px";
-      mobileControls.style.left = (rect.left - box.left + 6) + "px";
-      var below = rect.bottom - box.top + 10;
-      mobileControls.style.top =
-        (below + mobileControls.offsetHeight <= frame.clientHeight - 4
-          ? below : rect.bottom - box.top - mobileControls.offsetHeight - 8) + "px";
-    }
-    nameForm.style.width = Math.min(340, rect.width * 0.72) + "px";
-    nameForm.style.left = (rect.left - box.left + rect.width / 2) + "px";
-    nameForm.style.top = (rect.top - box.top + rect.height * 0.56) + "px";
-    nameForm.style.transform = "translate(-50%, -50%)";
+    nameForm.style.width = (rect.width * 300 / 800) + "px";
+    nameForm.style.height = (rect.height * 56 / 600) + "px";
+    nameForm.style.left = (rect.left - box.left + rect.width * 250 / 800) + "px";
+    nameForm.style.top = (rect.top - box.top + rect.height * 274 / 600) + "px";
   }
 
   if (window.matchMedia("(pointer: coarse)").matches ||
@@ -504,12 +401,11 @@
        stretch the picture, so they are dropped once this runs. */
     if (canvas.style.maxWidth !== "none") canvas.style.maxWidth = "none";
     if (canvas.style.maxHeight !== "none") canvas.style.maxHeight = "none";
-    positionMobileUi();
+    positionNameField();
   }
 
   window.addEventListener("resize", fitCanvas);
   window.addEventListener("orientationchange", fitCanvas);
-  document.addEventListener("fullscreenchange", fitCanvas);
   if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(frame);
 
   /* Emscripten sizes the canvas itself whenever raylib creates or resizes the
@@ -526,23 +422,6 @@
   }
 
   fitCanvas();
-
-  /* ---- Fullscreen ------------------------------------------------------
-     The wrapper is made fullscreen rather than the canvas: fitCanvas() then
-     keeps the 4:3 box inside it, so the aspect ratio survives on displays of
-     any shape. */
-  var fsButton = document.getElementById("fullscreen");
-  if (!frame.requestFullscreen) {
-    fsButton.hidden = true;
-  } else {
-    fsButton.addEventListener("click", function () {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else frame.requestFullscreen().catch(function (e) {
-        console.warn("dxball: fullscreen request refused.", e);
-      });
-      canvas.focus();
-    });
-  }
 
   /* ---- Keep input on the canvas ---------------------------------------- */
   canvas.addEventListener("mousedown", function () { canvas.focus(); });

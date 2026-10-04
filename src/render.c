@@ -252,7 +252,17 @@ Rectangle pauseMenuButtonRect(int index)
 
 Rectangle hudPauseButtonRect(void)
 {
-    return (Rectangle){HUD_PAUSE_BUTTON_X - 22.0f, HUD_PAUSE_BUTTON_Y - 20.0f, 44.0f, 40.0f};
+    return (Rectangle){HUD_PAUSE_BUTTON_X - 36.0f, HUD_PAUSE_BUTTON_Y - 25.0f, 72.0f, 50.0f};
+}
+
+Rectangle nameContinueButtonRect(void)
+{
+    return (Rectangle){411.0f, 350.0f, 170.0f, 46.0f};
+}
+
+Rectangle nameBackButtonRect(void)
+{
+    return (Rectangle){219.0f, 350.0f, 170.0f, 46.0f};
 }
 
 void drawAstralPanel(Rectangle rec, float opacity)

@@ -190,7 +190,7 @@ static void drawSettingsScreen(Game *g, Assets *a)
     drawCenteredFontText(g->font, "TUNE YOUR BROOM AND SPELLS", SCREEN_W / 2.0f, 135, 11, 1.0f, WIZARD_INK_MUTED);
 
     static const char *labels[] = {"SOUND", "SNITCH SPEED", "BROOM SPEED", "DIFFICULTY", "MOUSE MOVE"};
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < (inputTouchMode() ? 4 : 5); i++)
     {
         const float size = 16.0f;
         Vector2 extent = MeasureTextEx(g->font, labels[i], size, 0.7f);
@@ -205,8 +205,9 @@ static void drawSettingsScreen(Game *g, Assets *a)
     Rectangle reset = bottomActionRect(0, 2);
     Rectangle back = bottomActionRect(1, 2);
     drawWizardButton(a->buttonPlate, g->font, sound, g->soundOn ? "ON" : "OFF", 17, CheckCollisionPointRec(mouse, sound));
-    drawWizardButton(a->buttonPlate, g->font, mouseToggle, g->mouseControlEnabled ? "ON" : "OFF", 17,
-                     CheckCollisionPointRec(mouse, mouseToggle));
+    if (!inputTouchMode())
+        drawWizardButton(a->buttonPlate, g->font, mouseToggle, g->mouseControlEnabled ? "ON" : "OFF", 17,
+                         CheckCollisionPointRec(mouse, mouseToggle));
     drawWizardButton(a->buttonPlate, g->font, reset, "RESET", 16, CheckCollisionPointRec(mouse, reset));
 
     drawStepButton(g, a, settingsStepRect(1, 0), "-");
@@ -442,10 +443,18 @@ static void drawNameEntry(Game *g, Assets *a)
         Vector2 size = MeasureTextEx(g->font, shown, 24, 0.8f);
         DrawRectangle((int)(SCREEN_W / 2.0f + size.x / 2 + 4), (int)(fieldMidY - 11.5f), 2, 23, ASTRAL_TEAL);
     }
-    drawCenteredFontText(g->font,
-                         inputTouchMode() ? "TYPE BELOW AND TAP CONTINUE"
-                                          : "TYPE A NAME AND PRESS ENTER",
-                         SCREEN_W / 2.0f, 366, 13, 1.0f, ASTRAL_MUTED);
+    if (inputTouchMode())
+    {
+        Rectangle back = nameBackButtonRect();
+        Rectangle continueButton = nameContinueButtonRect();
+        drawWizardButton(a->buttonPlate, g->font, back, "BACK", 16,
+                         CheckCollisionPointRec(inputPosition(), back));
+        drawWizardButton(a->buttonPlate, g->font, continueButton, "CONTINUE", 16,
+                         CheckCollisionPointRec(inputPosition(), continueButton));
+    }
+    else
+        drawCenteredFontText(g->font, "TYPE A NAME AND PRESS ENTER",
+                             SCREEN_W / 2.0f, 366, 13, 1.0f, ASTRAL_MUTED);
 }
 
 void drawMenuScreens(Game *g, Assets *a)

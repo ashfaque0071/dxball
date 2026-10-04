@@ -63,19 +63,10 @@ static App app;
 #if DXBALL_WEB
 EMSCRIPTEN_KEEPALIVE int dxballMobileState(void)
 {
-    Game *g = &app.game;
-    return (g->showNameEntry ? 1 : 0) |
-           (g->gameStarted ? 2 : 0) |
-           (g->paused ? 4 : 0) |
-           (g->levelIntro ? 8 : 0) |
-           ((g->levelComplete || g->gameOver || g->gameWon) ? 16 : 0) |
-           (g->ballLaunched ? 32 : 0) |
-           ((g->showNameEntry || g->showLevelSelect || g->showResumePrompt ||
-             g->showHowToPlay || g->showHighScore || g->showSettings ||
-             g->showCredits) ? 64 : 0);
+    return app.game.showNameEntry;
 }
 
-EMSCRIPTEN_KEEPALIVE void dxballMobileName(const char *name)
+EMSCRIPTEN_KEEPALIVE void dxballMobileSetName(const char *name)
 {
     if (!app.game.showNameEntry || name == NULL)
         return;
@@ -88,6 +79,13 @@ EMSCRIPTEN_KEEPALIVE void dxballMobileName(const char *name)
             app.game.playerName[length++] = (char)toupper(*p);
     }
     app.game.playerName[length] = '\0';
+}
+
+EMSCRIPTEN_KEEPALIVE void dxballMobileName(const char *name)
+{
+    if (!app.game.showNameEntry || name == NULL)
+        return;
+    dxballMobileSetName(name);
     confirmPlayerName(&app.game, &app.audio);
 }
 
@@ -285,7 +283,7 @@ static void appFrame(void)
 #if DXBALL_WEB
     if (requestedLevel(game) > app.loadedLevelCount)
     {
-        if (IsKeyPressed(KEY_ESCAPE) || inputBackPressed())
+        if (IsKeyPressed(KEY_ESCAPE))
         {
             if (game->gameStarted)
                 game->returnToMenuRequested = 1;

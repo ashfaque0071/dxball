@@ -18,7 +18,7 @@ static void updateLevelIntro(Game *g)
 {
 
     if (!g->justStartedGame &&
-        (IsKeyPressed(KEY_ENTER) || inputPressed() || inputLaunchPressed()))
+        (IsKeyPressed(KEY_ENTER) || inputPressed()))
     {
         g->levelIntro = 0;
         g->ballLaunched = 0;
@@ -81,7 +81,7 @@ static void updateWaitingBall(Game *g)
     g->balls[0].x = g->paddleX + g->paddleW / 2;
     g->balls[0].y = g->paddleY - g->balls[0].radius - 2;
 
-    if (IsKeyPressed(KEY_SPACE) || inputLaunchPressed() ||
+    if (IsKeyPressed(KEY_SPACE) ||
         (inputPressed() && !g->clickConsumed))
     {
         g->ballLaunched = 1;

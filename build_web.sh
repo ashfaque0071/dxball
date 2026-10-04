@@ -231,7 +231,7 @@ emcc -std=c99 -Wall -Wextra -Wno-unused-parameter -O3 \
   -sFORCE_FILESYSTEM=1 \
   -lidbfs.js \
   -sEXPORTED_RUNTIME_METHODS=FS,IDBFS,addRunDependency,removeRunDependency,HEAPF32,ccall \
-  -sEXPORTED_FUNCTIONS=_main,_ma_device__on_notification_unlocked,_dxballCoreReady,_dxballCoreStatus,_dxballAssetsReady,_dxballAssetsStatus,_dxballTouchMode,_dxballTouchPointer,_dxballTouchAction,_dxballMobileState,_dxballMobileName \
+  -sEXPORTED_FUNCTIONS=_main,_ma_device__on_notification_unlocked,_dxballCoreReady,_dxballCoreStatus,_dxballAssetsReady,_dxballAssetsStatus,_dxballTouchMode,_dxballTouchPointer,_dxballMobileState,_dxballMobileSetName,_dxballMobileName \
   -sMODULARIZE=0 \
   -sASSERTIONS=0 \
   --closure 0 \
